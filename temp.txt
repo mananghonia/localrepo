@@ -1,1 +1,3 @@
 hi i am manan and this is my first clone repo 
+yes i have successfully commit the request now i will do it again 
+commit , push 
