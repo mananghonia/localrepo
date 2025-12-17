@@ -3,6 +3,9 @@ import DashboardPage from './pages/DashboardPage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import SignupPage from './pages/SignupPage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
+import AddExpensePage from './pages/AddExpensePage.jsx'
+import FriendsPage from './pages/FriendsPage.jsx'
+import ActivityPage from './pages/ActivityPage.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 
 function App() {
@@ -11,6 +14,30 @@ function App() {
       <Route path="/" element={<DashboardPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route
+        path="/add-expense"
+        element={(
+          <ProtectedRoute>
+            <AddExpensePage />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/friends"
+        element={(
+          <ProtectedRoute>
+            <FriendsPage />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/activity"
+        element={(
+          <ProtectedRoute>
+            <ActivityPage />
+          </ProtectedRoute>
+        )}
+      />
       <Route
         path="/profile"
         element={(

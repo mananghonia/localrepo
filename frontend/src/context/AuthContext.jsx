@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import * as authApi from '../services/authApi'
 
 const STORAGE_KEY = 'splitwise-auth-state'
@@ -56,6 +56,19 @@ export const AuthProvider = ({ children }) => {
     return persist(data)
   }
 
+  const refreshAccessToken = useCallback(async () => {
+    if (!authState.refreshToken) {
+      throw new Error('Missing refresh token')
+    }
+    const data = await authApi.refreshToken(authState.refreshToken)
+    const updated = persist({
+      user: authState.user,
+      access: data.access,
+      refresh: data.refresh || authState.refreshToken,
+    })
+    return updated.accessToken
+  }, [authState.refreshToken, authState.user, persist])
+
   const logout = () => {
     setAuthState(defaultAuthState)
     if (typeof window !== 'undefined') {
@@ -72,9 +85,10 @@ export const AuthProvider = ({ children }) => {
       signup,
       login,
       googleLogin,
+      refreshAccessToken,
       logout,
     }),
-    [authState],
+    [authState, refreshAccessToken],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

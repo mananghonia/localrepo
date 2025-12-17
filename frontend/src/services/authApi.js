@@ -47,3 +47,9 @@ export const requestSignupOtp = (data) =>
     method: 'POST',
     body: JSON.stringify(data),
   })
+
+export const refreshToken = (refresh) =>
+  request('/api/users/token/refresh/', {
+    method: 'POST',
+    body: JSON.stringify({ refresh }),
+  })

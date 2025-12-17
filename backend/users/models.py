@@ -1,7 +1,16 @@
 from datetime import datetime
 
 from django.contrib.auth.hashers import check_password, make_password
-from mongoengine import BooleanField, DateTimeField, Document, EmailField, StringField
+from mongoengine import (
+    BooleanField,
+    DateTimeField,
+    Document,
+    EmailField,
+    FloatField,
+    ReferenceField,
+    StringField,
+    CASCADE,
+)
 
 class User(Document):
     email = EmailField(required=True, unique=True)
@@ -23,6 +32,58 @@ class User(Document):
 
     def __str__(self):
         return f"User({self.email})"
+
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_active(self):
+        return True
+
+
+class Friendship(Document):
+    user = ReferenceField('User', required=True, reverse_delete_rule=CASCADE)
+    friend = ReferenceField('User', required=True, reverse_delete_rule=CASCADE)
+    balance = FloatField(default=0)
+    created_at = DateTimeField(default=datetime.utcnow)
+
+    meta = {
+        'collection': 'friendships',
+        'indexes': [
+            {'fields': ['user', 'friend'], 'unique': True},
+        ],
+    }
+
+    def __str__(self):
+        return f"Friendship({self.user_id}->{self.friend_id})"
+
+
+class FriendInvite(Document):
+    STATUS_PENDING = 'pending'
+    STATUS_ACCEPTED = 'accepted'
+    STATUS_REJECTED = 'rejected'
+
+    inviter = ReferenceField('User', required=True, reverse_delete_rule=CASCADE)
+    invitee_user = ReferenceField('User', required=False, null=True, reverse_delete_rule=CASCADE)
+    invitee_email = EmailField(required=True)
+    note = StringField()
+    status = StringField(default=STATUS_PENDING, choices=[STATUS_PENDING, STATUS_ACCEPTED, STATUS_REJECTED])
+    created_at = DateTimeField(default=datetime.utcnow)
+    responded_at = DateTimeField()
+
+    meta = {
+        'collection': 'friend_invites',
+        'indexes': [
+            {'fields': ['invitee_email', 'status', '-created_at']},
+            {'fields': ['inviter', 'invitee_email', 'status']},
+        ],
+    }
+
+    def mark_status(self, status):
+        self.status = status
+        self.responded_at = datetime.utcnow()
+        self.save()
 
 
 class EmailOTP(Document):

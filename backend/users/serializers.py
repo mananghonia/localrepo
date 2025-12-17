@@ -1,6 +1,8 @@
 from rest_framework import serializers
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import User
+from .models import User, FriendInvite, Friendship
 from . import services
 
 
@@ -57,3 +59,75 @@ class OTPRequestSerializer(serializers.Serializer):
         if User.objects(email=normalized).first():
             raise serializers.ValidationError("A user with this email already exists.")
         return normalized
+
+
+class FriendInviteCreateSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    note = serializers.CharField(max_length=255, allow_blank=True, required=False)
+
+    def validate_email(self, value):
+        normalized = value.strip().lower()
+        request_user = self.context.get('request_user')
+        if not request_user:
+            return normalized
+        if normalized == request_user.email:
+            raise serializers.ValidationError("You cannot invite yourself.")
+
+        existing_user = User.objects(email=normalized).first()
+        if existing_user and Friendship.objects(user=request_user, friend=existing_user).first():
+            raise serializers.ValidationError("You are already friends with this user.")
+
+        pending_outgoing = FriendInvite.objects(
+            inviter=request_user,
+            invitee_email=normalized,
+            status=FriendInvite.STATUS_PENDING,
+        ).first()
+        if pending_outgoing:
+            raise serializers.ValidationError("You already sent an invite to this email.")
+
+        pending_incoming = None
+        if existing_user:
+            pending_incoming = FriendInvite.objects(
+                inviter=existing_user,
+                invitee_email=request_user.email,
+                status=FriendInvite.STATUS_PENDING,
+            ).first()
+            if pending_incoming:
+                raise serializers.ValidationError(
+                    "This person has already invited you. Check notifications."
+                )
+
+        self.context['invitee_user'] = existing_user
+        return normalized
+
+
+class MongoTokenRefreshSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
+
+    default_error_messages = {
+        'no_user': 'Refresh token did not include a user id.',
+        'user_not_found': 'The user linked to this token no longer exists.',
+    }
+
+    def validate(self, attrs):
+        refresh_token = attrs.get('refresh')
+        if not refresh_token:
+            raise serializers.ValidationError({'refresh': 'This field is required.'})
+
+        try:
+            refresh = RefreshToken(refresh_token)
+        except TokenError as exc:
+            raise serializers.ValidationError({'refresh': str(exc)}) from exc
+
+        user_id = refresh.payload.get('user_id') or refresh.payload.get('user')
+        if not user_id:
+            self.fail('no_user')
+
+        user = User.objects(id=str(user_id)).first()
+        if not user:
+            self.fail('user_not_found')
+
+        return {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }

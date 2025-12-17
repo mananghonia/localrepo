@@ -7,7 +7,7 @@ from django.contrib.auth.hashers import check_password, make_password
 from django.core.mail import send_mail
 from django.utils.crypto import get_random_string
 
-from .models import EmailOTP, User
+from .models import EmailOTP, User, FriendInvite, Friendship
 
 
 OTP_ALLOWED_CHARS = '0123456789'
@@ -18,6 +18,10 @@ class OTPDeliveryError(Exception):
     """Raised when the OTP email cannot be delivered."""
     pass
 
+
+class InviteDeliveryError(Exception):
+    """Raised when the invite email cannot be delivered."""
+    pass
 
 def _now():
     return datetime.utcnow()
@@ -95,3 +99,45 @@ def build_unique_username(seed: str) -> str:
         candidate = f"{base}{counter}"
         counter += 1
     return candidate
+
+
+def ensure_friendship(user_a: User, user_b: User) -> None:
+    if not user_a or not user_b:
+        return
+    if user_a.id == user_b.id:
+        return
+
+    for owner, friend in ((user_a, user_b), (user_b, user_a)):
+        Friendship.objects(user=owner, friend=friend).update_one(
+            set__friend=friend,
+            set_on_insert__created_at=_now(),
+            upsert=True,
+        )
+
+
+def attach_pending_invites_to_user(user: User) -> None:
+    if not user:
+        return
+    FriendInvite.objects(invitee_email=user.email, invitee_user=None).update(set__invitee_user=user)
+
+
+def send_friend_invite_email(invite: FriendInvite) -> None:
+    target_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/friends?section=invites"
+    inviter_name = invite.inviter.name
+    message_lines = [
+        f"{inviter_name} invited you to join their Balance Studio circle.",
+        '',
+        "Log in or sign up to respond to the invite.",
+        target_url,
+    ]
+    try:
+        send_mail(
+            subject=f"{inviter_name} sent you a Balance Studio invite",
+            message='\n'.join(message_lines),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[invite.invitee_email],
+            fail_silently=False,
+        )
+    except smtplib.SMTPException as exc:
+        logger.exception("Failed to send friend invite email to %s", invite.invitee_email)
+        raise InviteDeliveryError("Could not send invite email right now.") from exc
