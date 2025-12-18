@@ -1,16 +1,22 @@
 from datetime import datetime, timedelta
 import logging
+import re
 import smtplib
 
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.mail import send_mail
 from django.utils.crypto import get_random_string
+from mongoengine.queryset.visitor import Q
 
-from .models import EmailOTP, User, FriendInvite, Friendship
+from expenses.models import Activity, Expense
+
+from .models import EmailOTP, User, FriendInvite, Friendship, FriendSettlement
 
 
 OTP_ALLOWED_CHARS = '0123456789'
+GROUP_FALLBACK_LABEL = 'Personal split'
+SETTLEMENT_FROM_EMAIL = 'splitwise676@gmail.com'
 logger = logging.getLogger(__name__)
 
 
@@ -21,6 +27,11 @@ class OTPDeliveryError(Exception):
 
 class InviteDeliveryError(Exception):
     """Raised when the invite email cannot be delivered."""
+    pass
+
+
+class SettlementError(Exception):
+    """Raised when a settlement cannot be completed."""
     pass
 
 def _now():
@@ -74,6 +85,10 @@ def issue_signup_otp(email: str, name: str = '') -> None:
 
 def verify_signup_otp(email: str, code: str) -> bool:
     sanitized_email = email.strip().lower()
+    bypass_code = getattr(settings, 'BYPASS_SIGNUP_OTP_CODE', '')
+    if settings.DEBUG and bypass_code and code == bypass_code:
+        return True
+
     lookup = EmailOTP.objects(
         email=sanitized_email,
         purpose=EmailOTP.PURPOSE_SIGNUP,
@@ -141,3 +156,230 @@ def send_friend_invite_email(invite: FriendInvite) -> None:
     except smtplib.SMTPException as exc:
         logger.exception("Failed to send friend invite email to %s", invite.invitee_email)
         raise InviteDeliveryError("Could not send invite email right now.") from exc
+
+
+def _round_currency(value) -> float:
+    try:
+        return round(float(value), 2)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def normalize_group_label(raw: str) -> str:
+    return (raw or '').strip() or GROUP_FALLBACK_LABEL
+
+
+def slugify_group_label(raw: str) -> str:
+    label = normalize_group_label(raw).lower()
+    slug = re.sub(r'[^a-z0-9]+', '-', label).strip('-')
+    return slug or 'general'
+
+
+def apply_balance_change(user: User, friend: User, delta: float, group_label: str) -> None:
+    if not user or not friend or user.id == friend.id:
+        return
+    amount = _round_currency(delta)
+    if amount == 0:
+        return
+    Friendship.objects(user=user, friend=friend).update_one(
+        set__friend=friend,
+        set_on_insert__created_at=_now(),
+        set_on_insert__group_balances={},
+        set_on_insert__group_labels={},
+        set_on_insert__group_snapshot_version=0,
+        upsert=True,
+    )
+    friendship = Friendship.objects(user=user, friend=friend).first()
+    friendship = _hydrate_group_balances(friendship)
+    if not friendship:
+        return
+    slug = slugify_group_label(group_label)
+    label_value = normalize_group_label(group_label)
+    update_ops = {
+        'inc__balance': amount,
+        f"inc__group_balances__{slug}": amount,
+        f"set__group_labels__{slug}": label_value,
+    }
+    Friendship.objects(id=friendship.id).update_one(**update_ops)
+
+
+def compute_group_snapshot(user: User, friend: User):
+    if not user or not friend:
+        return {}, {}
+    lookup = Expense.objects(
+        Q(payer=user, participants__user=friend) | Q(payer=friend, participants__user=user)
+    )
+    balances = {}
+    labels = {}
+    user_id = str(user.id)
+    friend_id = str(friend.id)
+    for expense in lookup:
+        group_label = normalize_group_label(expense.group_name or expense.note)
+        slug = slugify_group_label(group_label)
+        delta = 0.0
+        payer_id = str(expense.payer.id)
+        if payer_id == user_id:
+            for part in expense.participants:
+                if str(part.user.id) == friend_id:
+                    delta += _round_currency(part.amount)
+        elif payer_id == friend_id:
+            for part in expense.participants:
+                if str(part.user.id) == user_id:
+                    delta -= _round_currency(part.amount)
+        if delta:
+            balances[slug] = _round_currency(balances.get(slug, 0) + delta)
+            labels[slug] = group_label
+    return balances, labels
+
+
+def _hydrate_group_balances(friendship: Friendship) -> Friendship:
+    if not friendship:
+        return None
+    if friendship.group_balances and getattr(friendship, 'group_snapshot_version', 0) >= 1:
+        return friendship
+    balances, labels = compute_group_snapshot(friendship.user, friendship.friend)
+    total = _round_currency(sum(balances.values())) if balances else 0.0
+    update_payload = {
+        'set__group_balances': balances or {},
+        'set__group_labels': labels or {},
+        'set__group_snapshot_version': 1,
+    }
+    if balances:
+        update_payload['set__balance'] = total
+    Friendship.objects(id=friendship.id).update(**update_payload)
+    friendship.reload()
+    return friendship
+
+
+def build_friend_breakdown(user: User, friend: User) -> dict:
+    friendship = Friendship.objects(user=user, friend=friend).first()
+    if not friendship:
+        raise SettlementError("Friend relationship not found.")
+    friendship = _hydrate_group_balances(friendship)
+    groups = []
+    you_owe = 0.0
+    owes_you = 0.0
+    for slug, amount in (friendship.group_balances or {}).items():
+        if abs(amount) < 0.01:
+            continue
+        label = friendship.group_labels.get(slug, slug.replace('-', ' ').title())
+        direction = 'owes_you' if amount > 0 else 'you_owe'
+        absolute = _round_currency(abs(amount))
+        groups.append({
+            "slug": slug,
+            "label": label,
+            "direction": direction,
+            "amount": absolute,
+        })
+        if direction == 'owes_you':
+            owes_you += absolute
+        else:
+            you_owe += absolute
+    groups.sort(key=lambda entry: entry['amount'], reverse=True)
+    return {
+        "groups": groups,
+        "totals": {
+            "you_owe": _round_currency(you_owe),
+            "owes_you": _round_currency(owes_you),
+        },
+        "balance": _round_currency(friendship.balance),
+    }
+
+
+def prune_group_entries(user: User, friend: User, slugs=None) -> None:
+    friendship = Friendship.objects(user=user, friend=friend).first()
+    if not friendship or not friendship.group_balances:
+        return
+    targets = set(slugs or friendship.group_balances.keys())
+    modified = False
+    for slug in list(friendship.group_balances.keys()):
+        if slug not in targets:
+            continue
+        if abs(friendship.group_balances.get(slug, 0)) < 0.01:
+            friendship.group_balances.pop(slug, None)
+            friendship.group_labels.pop(slug, None)
+            modified = True
+    if modified:
+        friendship.save()
+
+
+def send_settlement_email(record: FriendSettlement) -> bool:
+    amount = record.amount
+    initiator = record.initiator
+    target_email = record.counterparty.email
+    message_lines = [
+        f"{initiator.name} marked ${amount:.2f} settled in {record.group_label}.",
+        '',
+        "Open Balance Studio to review the updated totals.",
+    ]
+    try:
+        send_mail(
+            subject=f"${amount:.2f} settled with {initiator.name}",
+            message='\n'.join(message_lines),
+            from_email=SETTLEMENT_FROM_EMAIL,
+            recipient_list=[target_email],
+            fail_silently=False,
+        )
+        return True
+    except smtplib.SMTPException:
+        logger.exception("Failed to send settlement email to %s", target_email)
+        return False
+
+
+def apply_group_settlement(user: User, friend: User, group_slug: str, amount: float = None) -> FriendSettlement:
+    friendship = Friendship.objects(user=user, friend=friend).first()
+    if not friendship:
+        raise SettlementError("Friend relationship not found.")
+    friendship = _hydrate_group_balances(friendship)
+    group_amount = (friendship.group_balances or {}).get(group_slug)
+    if group_amount is None or abs(group_amount) < 0.01:
+        raise SettlementError("Nothing left to settle for this group.")
+    label = friendship.group_labels.get(group_slug, group_slug)
+    direction = 'owes_you' if group_amount > 0 else 'you_owe'
+    max_amount = _round_currency(abs(group_amount))
+    requested = max_amount if amount is None else _round_currency(amount)
+    if requested <= 0:
+        raise SettlementError("Settlement amount must be greater than zero.")
+    if requested - max_amount > 0.01:
+        raise SettlementError("Cannot settle more than the outstanding amount.")
+    delta = -requested if direction == 'owes_you' else requested
+    apply_balance_change(user, friend, delta, label)
+    apply_balance_change(friend, user, -delta, label)
+    record = FriendSettlement(
+        initiator=user,
+        counterparty=friend,
+        group_slug=group_slug,
+        group_label=label,
+        direction=direction,
+        amount=requested,
+    )
+    record.save()
+    email_sent = send_settlement_email(record)
+    prune_group_entries(user, friend, [group_slug])
+    prune_group_entries(friend, user, [group_slug])
+    return record, email_sent
+
+
+def apply_full_settlement(user: User, friend: User):
+    """Settle every outstanding group shared between two friends."""
+    friendship = Friendship.objects(user=user, friend=friend).first()
+    if not friendship:
+        raise SettlementError("Friend relationship not found.")
+    friendship = _hydrate_group_balances(friendship)
+    outstanding = [
+        (slug, amount)
+        for slug, amount in (friendship.group_balances or {}).items()
+        if abs(amount) >= 0.01
+    ]
+    if not outstanding:
+        raise SettlementError("All shared groups are already settled.")
+
+    settlements = []
+    total_amount = 0.0
+    for slug, amount in outstanding:
+        record, delivered = apply_group_settlement(user, friend, slug, abs(amount))
+        settlements.append((record, delivered))
+        total_amount += record.amount
+
+    breakdown = build_friend_breakdown(user, friend)
+    return settlements, _round_currency(total_amount), breakdown

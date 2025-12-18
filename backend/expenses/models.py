@@ -23,6 +23,7 @@ class ExpenseParticipant(EmbeddedDocument):
 class Expense(Document):
 	payer = ReferenceField('User', required=True)
 	note = StringField()
+	group_name = StringField()
 	total_amount = FloatField(required=True, min_value=0)
 	participants = ListField(EmbeddedDocumentField(ExpenseParticipant))
 	created_at = DateTimeField(default=datetime.utcnow)

@@ -4,9 +4,11 @@ from django.contrib.auth.hashers import check_password, make_password
 from mongoengine import (
     BooleanField,
     DateTimeField,
+    DictField,
     Document,
     EmailField,
     FloatField,
+    IntField,
     ReferenceField,
     StringField,
     CASCADE,
@@ -47,6 +49,9 @@ class Friendship(Document):
     friend = ReferenceField('User', required=True, reverse_delete_rule=CASCADE)
     balance = FloatField(default=0)
     created_at = DateTimeField(default=datetime.utcnow)
+    group_balances = DictField(field=FloatField(), default=dict)
+    group_labels = DictField(field=StringField(), default=dict)
+    group_snapshot_version = IntField(default=0)
 
     meta = {
         'collection': 'friendships',
@@ -84,6 +89,27 @@ class FriendInvite(Document):
         self.status = status
         self.responded_at = datetime.utcnow()
         self.save()
+
+
+class FriendSettlement(Document):
+    initiator = ReferenceField('User', required=True, reverse_delete_rule=CASCADE)
+    counterparty = ReferenceField('User', required=True, reverse_delete_rule=CASCADE)
+    group_slug = StringField(required=True)
+    group_label = StringField(required=True)
+    direction = StringField(required=True, choices=['owes_you', 'you_owe'])
+    amount = FloatField(required=True, min_value=0)
+    created_at = DateTimeField(default=datetime.utcnow)
+
+    meta = {
+        'collection': 'friend_settlements',
+        'indexes': [
+            {'fields': ['initiator', '-created_at']},
+            {'fields': ['counterparty', '-created_at']},
+        ],
+    }
+
+    def __str__(self):
+        return f"FriendSettlement({self.initiator_id}->{self.counterparty_id}:{self.amount})"
 
 
 class EmailOTP(Document):

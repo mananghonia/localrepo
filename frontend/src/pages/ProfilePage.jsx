@@ -3,9 +3,10 @@ import { useAuth } from '../context/AuthContext.jsx'
 
 const ProfilePage = () => {
   const { user } = useAuth()
+  const maskedPassword = '••••••••'
 
   return (
-    <div className="profile-screen">
+    <section className="workspace-screen profile-screen">
       <AppNav />
       <section className="glass-card profile-card">
         <header>
@@ -30,12 +31,16 @@ const ProfilePage = () => {
             <span>Email</span>
             <strong>{user?.email || '—'}</strong>
           </div>
+          <div className="profile-field">
+            <span>Password</span>
+            <strong>{maskedPassword}</strong>
+          </div>
         </div>
         <p className="profile-hint">
           Need to update something? Tap the chat bubble in the footer or reach us at support@balance.studio.
         </p>
       </section>
-    </div>
+    </section>
   )
 }
 

@@ -14,6 +14,7 @@ const SignupPage = () => {
   const [otpPending, setOtpPending] = useState(false)
   const [otpFeedback, setOtpFeedback] = useState('')
   const [error, setError] = useState('')
+  const devOtpCode = import.meta.env.VITE_DEV_OTP_CODE || (import.meta.env.MODE !== 'production' ? '000000' : '')
 
   const handleChange = (event) => {
     const { name, value } = event.target
@@ -125,6 +126,11 @@ const SignupPage = () => {
           autoComplete="one-time-code"
         />
         {otpFeedback ? <div className="hint-text">{otpFeedback}</div> : null}
+        {devOtpCode ? (
+          <p className="hint-text">
+            Building locally? Enter <strong>{devOtpCode}</strong> if email delivery is not configured.
+          </p>
+        ) : null}
 
         <button className="primary-btn" type="submit" disabled={pending || !form.otp_code}>
           {pending ? 'Creating account…' : 'Sign up'}

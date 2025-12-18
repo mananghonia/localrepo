@@ -66,6 +66,7 @@ const AddExpensePage = () => {
   const [participants, setParticipants] = useState([])
   const [total, setTotal] = useState('')
   const [expenseName, setExpenseName] = useState('')
+  const [groupName, setGroupName] = useState('')
   const [autoSplit, setAutoSplit] = useState(true)
   const [feedback, setFeedback] = useState('')
   const { user, accessToken, refreshAccessToken } = useAuth()
@@ -223,6 +224,7 @@ const AddExpensePage = () => {
         {
           total_amount: normalizedTotal,
           note: trimmedName,
+          group_name: groupName.trim(),
           participants: normalizedParticipants.map((entry) => ({
             user_id: entry.user_id,
             amount: entry.amount,
@@ -232,6 +234,7 @@ const AddExpensePage = () => {
 
       setSaveStatus({ message: 'Expense saved and everyone was notified.', error: '' })
       setExpenseName('')
+      setGroupName('')
       setTotal('')
       setQuery('')
       setAutoSplit(true)
@@ -340,6 +343,17 @@ const AddExpensePage = () => {
                 placeholder="Give this split a memorable name"
                 value={expenseName}
                 onChange={(event) => setExpenseName(event.target.value)}
+              />
+              <label className="input-label" htmlFor="expense-group">
+                Group name (optional)
+              </label>
+              <input
+                id="expense-group"
+                className="text-input"
+                type="text"
+                placeholder="Add a group label so balances stay organized"
+                value={groupName}
+                onChange={(event) => setGroupName(event.target.value)}
               />
               <label className="input-label" htmlFor="expense-total">
                 Total amount

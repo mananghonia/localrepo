@@ -21,6 +21,7 @@ def serialize_expense(expense):
 	return {
 		"id": str(expense.id),
 		"note": expense.note or '',
+		"group_name": expense.group_name or '',
 		"total_amount": round(expense.total_amount, 2),
 		"created_at": expense.created_at.isoformat() if expense.created_at else None,
 		"payer": _serialize_user_min(expense.payer),
@@ -76,6 +77,7 @@ class ExpenseListCreateView(APIView):
 		raw_total = payload.get('total_amount')
 		note = (payload.get('note') or '').strip()
 		expense_title = f'"{note}"' if note else 'a new expense'
+		group_label = services.normalize_group_label(payload.get('group_name'))
 		participants_payload = payload.get('participants') or []
 
 		try:
@@ -140,6 +142,7 @@ class ExpenseListCreateView(APIView):
 		expense = Expense(
 			payer=user,
 			note=note,
+			group_name=group_label,
 			total_amount=total_amount,
 			participants=participant_docs,
 		)
@@ -152,8 +155,8 @@ class ExpenseListCreateView(APIView):
 			if delta <= 0:
 				continue
 			services.ensure_friendship(user, part.user)
-			Friendship.objects(user=user, friend=part.user).update_one(inc__balance=delta)
-			Friendship.objects(user=part.user, friend=user).update_one(inc__balance=-delta)
+			services.apply_balance_change(user, part.user, delta, group_label)
+			services.apply_balance_change(part.user, user, -delta, group_label)
 
 		friend_parts = [part for part in participant_docs if str(part.user.id) != payer_key]
 		owed_total = round(sum(part.amount for part in friend_parts), 2)
@@ -164,7 +167,7 @@ class ExpenseListCreateView(APIView):
 			actor=user,
 			expense=expense,
 			summary=f"You logged {expense_title}",
-			detail=f"{friend_names} owe you ${owed_total:.2f} total.",
+			detail=f"{friend_names} owe you ${owed_total:.2f} total in {group_label}.",
 			amount=owed_total,
 			status='credited' if owed_total > 0 else 'posted',
 		).save()
@@ -175,7 +178,7 @@ class ExpenseListCreateView(APIView):
 				actor=user,
 				expense=expense,
 				summary=f"{user.name} logged {expense_title}",
-				detail=f"You owe ${part.amount:.2f} to {user.name}.",
+				detail=f"You owe ${part.amount:.2f} to {user.name} for {group_label}.",
 				amount=round(-part.amount, 2),
 				status='due',
 			).save()

@@ -52,6 +52,20 @@ def serialize_invite(invite):
     }
 
 
+def serialize_settlement_record(record, email_delivered=False):
+    if not record:
+        return None
+    return {
+        "id": str(record.id),
+        "group": record.group_label,
+        "group_slug": record.group_slug,
+        "direction": record.direction,
+        "amount": round(record.amount, 2),
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "email_delivered": bool(email_delivered),
+    }
+
+
 class SignupView(APIView):
     permission_classes = [AllowAny]
 
@@ -247,6 +261,88 @@ class FriendInviteDecisionView(APIView):
 
         invite.mark_status(FriendInvite.STATUS_REJECTED)
         return Response({"invite": serialize_invite(invite)}, status=200)
+
+
+class FriendBreakdownView(APIView):
+    def get(self, request, friend_id):
+        if str(request.user.id) == str(friend_id):
+            return Response({"error": "You cannot inspect your own balance."}, status=400)
+        friend = User.objects(id=friend_id).first()
+        if not friend:
+            return Response({"error": "Friend not found."}, status=404)
+        friendship = Friendship.objects(user=request.user, friend=friend).first()
+        if not friendship:
+            return Response({"error": "You are not connected to this person."}, status=404)
+        try:
+            breakdown = services.build_friend_breakdown(request.user, friend)
+        except services.SettlementError as exc:
+            return Response({"error": str(exc)}, status=400)
+        payload = {
+            "friend": serialize_user(friend),
+            **breakdown,
+        }
+        return Response(payload)
+
+
+class FriendSettlementView(APIView):
+    def post(self, request, friend_id):
+        friend = User.objects(id=friend_id).first()
+        if not friend:
+            return Response({"error": "Friend not found."}, status=404)
+        if str(friend.id) == str(request.user.id):
+            return Response({"error": "You cannot settle with yourself."}, status=400)
+        friendship = Friendship.objects(user=request.user, friend=friend).first()
+        if not friendship:
+            return Response({"error": "You are not connected to this person."}, status=404)
+        payload = request.data or {}
+        group_slug = payload.get('group_slug') or payload.get('group')
+        if not group_slug:
+            return Response({"error": "Select a group entry to settle."}, status=400)
+        amount_value = payload.get('amount')
+        parsed_amount = None
+        if amount_value is not None:
+            try:
+                parsed_amount = round(float(amount_value), 2)
+            except (TypeError, ValueError):
+                return Response({"error": "Amount must be a valid number."}, status=400)
+        normalized_slug = services.slugify_group_label(group_slug)
+        try:
+            record, email_sent = services.apply_group_settlement(request.user, friend, normalized_slug, parsed_amount)
+            breakdown = services.build_friend_breakdown(request.user, friend)
+        except services.SettlementError as exc:
+            return Response({"error": str(exc)}, status=400)
+        return Response({
+            "settlement": serialize_settlement_record(record, email_sent),
+            "breakdown": breakdown,
+        })
+
+
+class FriendFullSettlementView(APIView):
+    def post(self, request, friend_id):
+        friend = User.objects(id=friend_id).first()
+        if not friend:
+            return Response({"error": "Friend not found."}, status=404)
+        if str(friend.id) == str(request.user.id):
+            return Response({"error": "You cannot settle with yourself."}, status=400)
+        friendship = Friendship.objects(user=request.user, friend=friend).first()
+        if not friendship:
+            return Response({"error": "You are not connected to this person."}, status=404)
+        try:
+            settlements, total_amount, breakdown = services.apply_full_settlement(request.user, friend)
+        except services.SettlementError as exc:
+            return Response({"error": str(exc)}, status=400)
+
+        serialized = [serialize_settlement_record(record, delivered) for record, delivered in settlements]
+        summary = {
+            "groups_count": len(serialized),
+            "total_amount": total_amount,
+            "email_delivered": any(entry.get("email_delivered") for entry in serialized),
+        }
+        return Response({
+            "settlements": serialized,
+            "summary": summary,
+            "breakdown": breakdown,
+        })
 
 
 class MongoTokenRefreshView(TokenViewBase):

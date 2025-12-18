@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import AppNav from '../components/AppNav.jsx'
+import FriendBreakdownModal from '../components/FriendBreakdownModal.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import * as friendsApi from '../services/friendsApi'
 import { emitInvitesUpdated } from '../utils/inviteEvents'
@@ -18,6 +19,7 @@ const FriendsPage = () => {
   const [inviteForm, setInviteForm] = useState({ email: '', note: '' })
   const inviteFormRef = useRef(null)
   const [activeSection, setActiveSection] = useState('friends')
+  const [selectedFriend, setSelectedFriend] = useState(null)
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -107,6 +109,18 @@ const FriendsPage = () => {
 
   const scrollToInviteForm = () => {
     inviteFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  const handleFriendClick = (friend) => {
+    if (!accessToken) {
+      setErrorMessage('Please sign in again to view detailed balances.')
+      return
+    }
+    setSelectedFriend(friend)
+  }
+
+  const closeFriendModal = () => {
+    setSelectedFriend(null)
   }
 
   return (
@@ -241,7 +255,19 @@ const FriendsPage = () => {
                   isCredit ? 'friends-ledger__amount--positive' : 'friends-ledger__amount--negative'
                 }`
                 return (
-                  <li key={friend.id} className="friends-ledger__item">
+                  <li
+                    key={friend.id}
+                    className="friends-ledger__item friends-ledger__item--action"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => handleFriendClick(friend)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault()
+                        handleFriendClick(friend)
+                      }
+                    }}
+                  >
                     <div>
                       <strong>{friend.name}</strong>
                       <p className="hint-text">@{friend.username || 'friend'} · {friend.email}</p>
@@ -256,6 +282,14 @@ const FriendsPage = () => {
           </ul>
         </article>
       </div>
+      {selectedFriend ? (
+        <FriendBreakdownModal
+          friend={selectedFriend}
+          auth={{ accessToken, refreshAccessToken }}
+          onClose={closeFriendModal}
+          onSettled={loadData}
+        />
+      ) : null}
     </section>
   )
 }
