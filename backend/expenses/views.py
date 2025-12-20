@@ -6,6 +6,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from realtime import pubsub as realtime_pubsub
 from users.models import Friendship, User, Notification
 from users import services
 
@@ -236,6 +237,13 @@ class ExpenseListCreateView(APIView):
 			)
 
 		_notify_expense_participants(expense, user, friend_parts, group_label, expense_title)
+
+		impact_map = {str(user.id): user}
+		for part in participant_docs:
+			impact_map[str(part.user.id)] = part.user
+		for target in impact_map.values():
+			realtime_pubsub.notify_friends_refresh(target, event='expense')
+			realtime_pubsub.notify_activity_refresh(target, event='expense')
 
 		return Response(serialize_expense(expense), status=status.HTTP_201_CREATED)
 

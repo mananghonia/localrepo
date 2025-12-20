@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { jsPDF } from 'jspdf'
 import AppNav from '../components/AppNav.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import * as expensesApi from '../services/expensesApi'
+import { ACTIVITY_UPDATED_EVENT } from '../utils/realtimeStreams'
 
 const formatCurrency = (value) => {
   const parsed = Number.isFinite(Number(value)) ? Number(value) : 0
@@ -127,48 +128,49 @@ const ActivityPage = () => {
   const [selectedExpenseId, setSelectedExpenseId] = useState(null)
   const [isExporting, setIsExporting] = useState(false)
 
-  useEffect(() => {
+  const loadActivityFeed = useCallback(async () => {
     if (!accessToken) {
+      setEntries([])
+      setExpensesById({})
       setLoading(false)
       return
     }
-
-    let cancelled = false
-
-    const load = async () => {
-      setLoading(true)
-      setError('')
-      try {
-        const [activityPayload, expensesPayload] = await Promise.all([
-          expensesApi.fetchActivity({ accessToken, refreshAccessToken }),
-          expensesApi.fetchExpenses({ accessToken, refreshAccessToken }),
-        ])
-
-        if (cancelled) return
-
-        setEntries(activityPayload?.results || [])
-        const map = {}
-        ;(expensesPayload?.results || []).forEach((expense) => {
-          map[expense.id] = expense
-        })
-        setExpensesById(map)
-      } catch (err) {
-        if (!cancelled) {
-          setError(err?.message || 'Unable to load activity right now.')
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
-    }
-
-    load()
-
-    return () => {
-      cancelled = true
+    setLoading(true)
+    setError('')
+    try {
+      const [activityPayload, expensesPayload] = await Promise.all([
+        expensesApi.fetchActivity({ accessToken, refreshAccessToken }),
+        expensesApi.fetchExpenses({ accessToken, refreshAccessToken }),
+      ])
+      setEntries(activityPayload?.results || [])
+      const map = {}
+      ;(expensesPayload?.results || []).forEach((expense) => {
+        map[expense.id] = expense
+      })
+      setExpensesById(map)
+    } catch (err) {
+      setError(err?.message || 'Unable to load activity right now.')
+    } finally {
+      setLoading(false)
     }
   }, [accessToken, refreshAccessToken])
+
+  useEffect(() => {
+    loadActivityFeed()
+  }, [loadActivityFeed])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const handler = () => {
+      if (accessToken) {
+        loadActivityFeed()
+      }
+    }
+    window.addEventListener(ACTIVITY_UPDATED_EVENT, handler)
+    return () => {
+      window.removeEventListener(ACTIVITY_UPDATED_EVENT, handler)
+    }
+  }, [accessToken, loadActivityFeed])
 
   const selectedExpense = selectedExpenseId ? expensesById[selectedExpenseId] : null
 

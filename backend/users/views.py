@@ -1,3 +1,5 @@
+from datetime import timezone
+
 from django.conf import settings
 from django.utils.crypto import get_random_string
 from rest_framework.views import APIView
@@ -21,6 +23,14 @@ from .serializers import (
 )
 from . import services
 
+def _isoformat_utc(value):
+    if not value:
+        return None
+    dt = value
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
+
 
 def serialize_user(user):
     return {
@@ -39,7 +49,7 @@ def serialize_friendship_entry(entry):
         "email": friend.email,
         "username": getattr(friend, 'username', ''),
         "balance": entry.balance,
-        "since": entry.created_at.isoformat() if entry.created_at else None,
+        "since": _isoformat_utc(entry.created_at),
     }
 
 
@@ -48,7 +58,7 @@ def serialize_invite(invite):
         "id": str(invite.id),
         "status": invite.status,
         "note": invite.note or '',
-        "created_at": invite.created_at.isoformat() if invite.created_at else None,
+        "created_at": _isoformat_utc(invite.created_at),
         "inviter": serialize_user(invite.inviter),
         "invitee_email": invite.invitee_email,
     }
@@ -63,7 +73,7 @@ def serialize_settlement_record(record, email_delivered=False):
         "group_slug": record.group_slug,
         "direction": record.direction,
         "amount": round(record.amount, 2),
-        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "created_at": _isoformat_utc(record.created_at),
         "email_delivered": bool(email_delivered),
     }
 
@@ -77,7 +87,7 @@ def serialize_notification(notification):
         "title": notification.title,
         "body": notification.body or '',
         "is_read": bool(notification.is_read),
-        "created_at": notification.created_at.isoformat() if notification.created_at else None,
+        "created_at": _isoformat_utc(notification.created_at),
         "actor": serialize_user(notification.actor) if notification.actor else None,
         "data": notification.data or {},
     }

@@ -70,7 +70,6 @@ const NotificationTray = ({
                 </div>
               </div>
               <div className="notification-tray__item-meta">
-                <time>{formatRelativeTime(notification.created_at)}</time>
                 {!notification.is_read ? (
                   <button type="button" className="notification-tray__mark" onClick={() => onMarkRead(notification.id)}>
                     Mark

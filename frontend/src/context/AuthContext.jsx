@@ -3,6 +3,7 @@ import * as authApi from '../services/authApi'
 import { openRealtimeSocket } from '../services/realtimeClient'
 import { emitInvitesUpdated } from '../utils/inviteEvents'
 import { emitNotificationsUpdated } from '../utils/notificationEvents'
+import { emitActivityUpdated, emitFriendsDataUpdated } from '../utils/realtimeStreams'
 
 const STORAGE_KEY = 'splitwise-auth-state'
 const defaultAuthState = {
@@ -120,6 +121,12 @@ export const AuthProvider = ({ children }) => {
           break
         case 'invites':
           emitInvitesUpdated()
+          break
+        case 'friends':
+          emitFriendsDataUpdated()
+          break
+        case 'activity':
+          emitActivityUpdated()
           break
         default:
           break

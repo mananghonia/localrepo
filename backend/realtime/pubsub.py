@@ -51,3 +51,23 @@ def notify_invite_refresh(user, count: int | None = None, event: str = 'refresh'
     if count is not None:
         payload['count'] = int(count)
     push_to_user(user, payload)
+
+
+def notify_friends_refresh(user, event: str = 'refresh') -> None:
+    push_to_user(
+        user,
+        {
+            'topic': 'friends',
+            'event': event,
+        },
+    )
+
+
+def notify_activity_refresh(user, event: str = 'refresh') -> None:
+    push_to_user(
+        user,
+        {
+            'topic': 'activity',
+            'event': event,
+        },
+    )

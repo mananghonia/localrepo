@@ -5,6 +5,7 @@ import FriendBreakdownModal from '../components/FriendBreakdownModal.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import * as friendsApi from '../services/friendsApi'
 import { emitInvitesUpdated, INVITES_UPDATED_EVENT } from '../utils/inviteEvents'
+import { FRIENDS_DATA_UPDATED_EVENT } from '../utils/realtimeStreams'
 
 const FriendsPage = () => {
   const location = useLocation()
@@ -71,6 +72,19 @@ const FriendsPage = () => {
     window.addEventListener(INVITES_UPDATED_EVENT, handler)
     return () => {
       window.removeEventListener(INVITES_UPDATED_EVENT, handler)
+    }
+  }, [accessToken, loadData])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const handler = () => {
+      if (accessToken) {
+        loadData()
+      }
+    }
+    window.addEventListener(FRIENDS_DATA_UPDATED_EVENT, handler)
+    return () => {
+      window.removeEventListener(FRIENDS_DATA_UPDATED_EVENT, handler)
     }
   }, [accessToken, loadData])
 
