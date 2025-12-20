@@ -31,7 +31,20 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-rq6)61$3=5%6#(o!ac^mq
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',') if os.environ.get('ALLOWED_HOSTS') else []
+raw_allowed_hosts = os.environ.get('ALLOWED_HOSTS', '')
+ALLOWED_HOSTS = [host.strip() for host in raw_allowed_hosts.split(',') if host.strip()] if raw_allowed_hosts else []
+if not ALLOWED_HOSTS and DEBUG:
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+]
 
 MONGODB_DB_NAME = os.environ.get('MONGODB_DB_NAME', 'splitwise')
 MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/splitwise')
@@ -50,12 +63,14 @@ INSTALLED_APPS = [
     # Third-party
     'rest_framework',
     'corsheaders',
+    'channels',
 
     # Local apps
     'users',
     'groups',
     'expenses',
     'payments',
+    'realtime.apps.RealtimeConfig',
 ]
 
 REST_FRAMEWORK = {
@@ -107,6 +122,7 @@ MIDDLEWARE = [
 CORS_ALLOW_ALL_ORIGINS = True
 
 ROOT_URLCONF = 'backend.urls'
+ASGI_APPLICATION = 'backend.asgi.application'
 
 TEMPLATES = [
     {
@@ -124,6 +140,20 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'backend.wsgi.application'
+CHANNEL_LAYERS = {
+    'default': (
+        {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')],
+            },
+        }
+        if os.environ.get('REDIS_URL')
+        else {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        }
+    )
+}
 
 
 # Database

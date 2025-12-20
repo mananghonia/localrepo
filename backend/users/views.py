@@ -9,7 +9,9 @@ from rest_framework_simplejwt.views import TokenViewBase
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
-from .models import User, FriendInvite, Friendship
+from realtime import pubsub as realtime_pubsub
+
+from .models import User, FriendInvite, Friendship, Notification
 from .serializers import (
     SignupSerializer,
     LoginSerializer,
@@ -63,6 +65,21 @@ def serialize_settlement_record(record, email_delivered=False):
         "amount": round(record.amount, 2),
         "created_at": record.created_at.isoformat() if record.created_at else None,
         "email_delivered": bool(email_delivered),
+    }
+
+
+def serialize_notification(notification):
+    if not notification:
+        return None
+    return {
+        "id": str(notification.id),
+        "kind": notification.kind,
+        "title": notification.title,
+        "body": notification.body or '',
+        "is_read": bool(notification.is_read),
+        "created_at": notification.created_at.isoformat() if notification.created_at else None,
+        "actor": serialize_user(notification.actor) if notification.actor else None,
+        "data": notification.data or {},
     }
 
 
@@ -226,7 +243,15 @@ class FriendInviteCreateView(APIView):
             invite.delete()
             return Response({"error": str(exc)}, status=500)
 
+        self._notify_invitee(invite, event='new')
         return Response(serialize_invite(invite), status=201)
+
+    def _notify_invitee(self, invite: FriendInvite, event: str = 'refresh'):
+        invitee = getattr(invite, 'invitee_user', None)
+        if not invitee:
+            return
+        pending = FriendInvite.objects(invitee_user=invitee, status=FriendInvite.STATUS_PENDING).count()
+        realtime_pubsub.notify_invite_refresh(invitee, pending, event=event)
 
 
 class FriendInviteDecisionView(APIView):
@@ -257,10 +282,18 @@ class FriendInviteDecisionView(APIView):
                 "invite": serialize_invite(invite),
                 "friend": serialize_friendship_entry(friendship) if friendship else None,
             }
+            self._notify_decision(invite)
             return Response(payload, status=200)
 
         invite.mark_status(FriendInvite.STATUS_REJECTED)
+        self._notify_decision(invite)
         return Response({"invite": serialize_invite(invite)}, status=200)
+
+    def _notify_decision(self, invite: FriendInvite):
+        invitee = getattr(invite, 'invitee_user', None)
+        if invitee:
+            pending = FriendInvite.objects(invitee_user=invitee, status=FriendInvite.STATUS_PENDING).count()
+            realtime_pubsub.notify_invite_refresh(invitee, pending, event='updated')
 
 
 class FriendBreakdownView(APIView):
@@ -343,6 +376,48 @@ class FriendFullSettlementView(APIView):
             "summary": summary,
             "breakdown": breakdown,
         })
+
+
+class NotificationListView(APIView):
+    def get(self, request):
+        try:
+            limit = int(request.query_params.get('limit', 20))
+        except (TypeError, ValueError):
+            limit = 20
+        limit = max(1, min(limit, 100))
+        unread_only = str(request.query_params.get('unread_only', '')).lower() in {"1", "true", "yes"}
+        queryset = Notification.objects(user=request.user)
+        if unread_only:
+            queryset = queryset.filter(is_read=False)
+        notifications = list(queryset.order_by('-created_at').limit(limit))
+        unread_count = Notification.objects(user=request.user, is_read=False).count()
+        return Response({
+            "unread": unread_count,
+            "results": [serialize_notification(entry) for entry in notifications],
+        })
+
+
+class NotificationReadView(APIView):
+    def post(self, request, notification_id):
+        notification = Notification.objects(id=notification_id, user=request.user).first()
+        if not notification:
+            return Response({"error": "Notification not found."}, status=404)
+        if not notification.is_read:
+            notification.is_read = True
+            notification.save()
+        unread_count = Notification.objects(user=request.user, is_read=False).count()
+        realtime_pubsub.notify_notification_refresh(request.user, unread_count, event='read')
+        return Response({
+            "notification": serialize_notification(notification),
+            "unread": unread_count,
+        })
+
+
+class NotificationReadAllView(APIView):
+    def post(self, request):
+        Notification.objects(user=request.user, is_read=False).update(set__is_read=True)
+        realtime_pubsub.notify_notification_refresh(request.user, 0, event='read_all')
+        return Response({"unread": 0})
 
 
 class MongoTokenRefreshView(TokenViewBase):

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as friendsApi from '../services/friendsApi'
+import { emitNotificationsUpdated } from '../utils/notificationEvents'
 
 const formatCurrency = (value) => `$${Number(value || 0).toFixed(2)}`
 
@@ -80,6 +81,7 @@ const FriendBreakdownModal = ({ friend, auth, onClose, onSettled }) => {
       setSettleAmount('')
       await fetchBreakdown()
       onSettled?.()
+      emitNotificationsUpdated()
     } catch (err) {
       setError(err.message || 'Unable to settle this balance right now.')
     } finally {
@@ -112,6 +114,7 @@ const FriendBreakdownModal = ({ friend, auth, onClose, onSettled }) => {
       setSettleAmount('')
       await fetchBreakdown()
       onSettled?.()
+      emitNotificationsUpdated()
     } catch (err) {
       setError(err.message || 'Unable to settle every group right now.')
     } finally {

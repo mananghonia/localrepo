@@ -1,5 +1,8 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import * as authApi from '../services/authApi'
+import { openRealtimeSocket } from '../services/realtimeClient'
+import { emitInvitesUpdated } from '../utils/inviteEvents'
+import { emitNotificationsUpdated } from '../utils/notificationEvents'
 
 const STORAGE_KEY = 'splitwise-auth-state'
 const defaultAuthState = {
@@ -26,6 +29,7 @@ const readPersistedState = () => {
 
 export const AuthProvider = ({ children }) => {
   const [authState, setAuthState] = useState(() => readPersistedState())
+  const realtimeRef = useRef({ socket: null, reconnectTimer: null, stopped: false })
 
   const persist = (payload) => {
     const normalized = {
@@ -75,6 +79,100 @@ export const AuthProvider = ({ children }) => {
       window.localStorage.removeItem(STORAGE_KEY)
     }
   }
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const connection = realtimeRef.current || { socket: null, reconnectTimer: null, stopped: false }
+    connection.stopped = false
+
+    const clearReconnect = () => {
+      if (connection.reconnectTimer) {
+        clearTimeout(connection.reconnectTimer)
+        connection.reconnectTimer = null
+      }
+    }
+
+    const closeSocket = () => {
+      if (connection.socket) {
+        try {
+          connection.socket.close()
+        } catch (error) {
+          console.warn('Error closing realtime socket', error)
+        }
+        connection.socket = null
+      }
+    }
+
+    if (!authState.accessToken) {
+      clearReconnect()
+      closeSocket()
+      realtimeRef.current = connection
+      return undefined
+    }
+
+    let retryDelay = 2000
+
+    const handleMessage = (payload) => {
+      if (!payload || typeof payload !== 'object') return
+      switch (payload.topic) {
+        case 'notifications':
+          emitNotificationsUpdated()
+          break
+        case 'invites':
+          emitInvitesUpdated()
+          break
+        default:
+          break
+      }
+    }
+
+    const scheduleReconnect = () => {
+      clearReconnect()
+      if (connection.stopped) return
+      connection.reconnectTimer = window.setTimeout(() => {
+        retryDelay = Math.min(retryDelay * 1.5, 15000)
+        connect()
+      }, retryDelay)
+    }
+
+    const connect = () => {
+      if (connection.stopped) return
+      clearReconnect()
+      closeSocket()
+      try {
+        const socket = openRealtimeSocket({
+          token: authState.accessToken,
+          onMessage: handleMessage,
+          onOpen: () => {
+            retryDelay = 2000
+          },
+          onClose: () => {
+            if (!connection.stopped) {
+              scheduleReconnect()
+            }
+          },
+          onError: () => {
+            if (!connection.stopped) {
+              scheduleReconnect()
+            }
+          },
+        })
+        connection.socket = socket
+      } catch (error) {
+        console.warn('Realtime connection failed', error)
+        scheduleReconnect()
+      }
+    }
+
+    connect()
+    realtimeRef.current = connection
+
+    return () => {
+      connection.stopped = true
+      clearReconnect()
+      closeSocket()
+    }
+  }, [authState.accessToken])
 
   const value = useMemo(
     () => ({

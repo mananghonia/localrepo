@@ -1,6 +1,14 @@
 # Splitwise-style Expense Manager
 
-This project aims to deliver a Splitwise-like experience with invitations, shared expense tracking, secure authentication, and payment integrations. The backend is built with Django REST Framework, MongoDB (via MongoEngine), JWT auth, and Google sign-in support. A React/Vite frontend lives in `frontend/` with ready-made login, signup, Google SSO, and a dashboard shell.
+This project aims to deliver a Splitwise-like experience with invitations, shared expense tracking, secure authentication, and payment integrations. The backend is built with Django REST Framework, MongoDB (via MongoEngine), JWT auth, and Google sign-in support. A React/Vite frontend lives in `frontend/` with ready-made login, signup, Google SSO, dashboard widgets, and the latest balances UI refresh.
+
+## Current Capabilities
+
+- **Authentication & onboarding** – email OTP verification, username/email login, JWT rotation, and Google SSO all wired through DRF + MongoEngine auth classes.
+- **Groups, expenses, and payments** – dedicated Django apps (`groups/`, `expenses/`, `payments/`) feed the React dashboards with per-group ledgers and participation data.
+- **Friend ledger + settlements** – the Friends page now exposes a detailed breakdown modal that lets users settle an individual group or trigger the new "Settle everything" action to clear all open balances in one tap. Behind the scenes, the ledger service keeps both sides of every friendship in sync (no more stale balances reappearing after a settlement).
+- **Email notifications** – signup OTPs, settlement receipts, and new-expense alerts are sent via `splitwise676@gmail.com`, so anyone added to a bill immediately receives the amount they owe.
+- **Responsive UI polish** – gradient modal shell, compact close control, and accessibility-minded focus states to keep the experience sharp on both desktop and mobile.
 
 ## Getting Started
 
@@ -60,6 +68,20 @@ npm run dev
 
 The frontend consumes `/api/users/*` endpoints, manages JWTs via `AuthContext`, and protects the dashboard route via React Router.
 
+### Friend balances spotlight
+
+- Open the **Friends** page and select a friend to launch the redesigned breakdown modal.
+- Each group entry still supports one-off settlement via `POST /api/users/friends/<id>/settlements/`.
+- The new primary action calls `POST /api/users/friends/<id>/settlements/all/`, marks every pending group as settled, and surfaces delivery status inside the modal.
+- The hero totals, confirmation copy, and success/error states refresh automatically thanks to the `friendsApi` helpers.
+
+### Email notifications
+
+- Configure SMTP credentials (see **Environment Variables**) for `splitwise676@gmail.com` or your own sender.
+- Every participant added to an expense receives an email showing the amount they owe and a link back to Balance Studio.
+- Settlement flows still email both parties and now reuse the same sender for consistency.
+- Logs in `backend/expenses/views.py` capture SMTP failures so you can monitor delivery during development.
+
 ## Auth API
 
 | Endpoint | Method | Description |
@@ -77,9 +99,9 @@ All endpoints return `{ refresh, access, user }`. Default DRF permissions requir
 2. **Complete signup** – POST `/api/users/signup/` with `name`, `username`, `email`, `password`, and the `otp_code` you received. Each code is single-use and expires after `SIGNUP_OTP_EXPIRATION_MINUTES`.
 3. **Log in later** – `/api/users/login/` now accepts the same password with either the email address or username, or you can use Google sign-in *after* the email has been registered.
 
-## Next
+## Roadmap
 
-- Build group, expense, and payment flows.
-- Add invitation + notification system.
-- Harden security (rate limits, HTTPS, secret rotation).
+- Export/shareable statements for each friend ledger (PDF + CSV).
+- Scheduled reminders + richer notification center on top of the existing email hooks.
+- Hardening: production-ready deployment docs, HTTPS by default, Redis-based rate limiting, and background jobs for large settlement emails.
 

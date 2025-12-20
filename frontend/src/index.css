@@ -220,8 +220,6 @@ button.pill--muted:hover {
 }
 
 .field-block {
-  display: flex;
-  flex-direction: column;
   gap: 0.35rem;
 }
 
@@ -718,6 +716,214 @@ button.pill--muted:hover {
   border-color: rgba(255, 255, 255, 0.6);
   transform: translateY(-1px);
 }
+.app-nav__icon--active {
+  border-color: rgba(107, 242, 193, 0.75);
+  background: rgba(107, 242, 193, 0.15);
+  box-shadow: 0 18px 30px rgba(107, 242, 193, 0.25);
+}
+ 
+.notification-tray {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 0;
+  width: min(360px, calc(100vw - 2rem));
+  background: linear-gradient(160deg, rgba(9, 11, 23, 0.92), rgba(18, 21, 38, 0.95));
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 32px 80px rgba(3, 5, 14, 0.65);
+  padding: 1.25rem;
+  z-index: 1400;
+  backdrop-filter: blur(18px);
+  transform-origin: 0 0;
+  opacity: 0;
+  transform: translate3d(-12px, 10px, 0) scale(0.94);
+  animation: trayLeftPop 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
+}
+ 
+ .notification-tray__header {
+   display: flex;
+   justify-content: space-between;
+   align-items: flex-start;
+   gap: 1rem;
+}
+ 
+ .notification-tray__header-actions {
+   display: flex;
+   gap: 0.4rem;
+   align-items: center;
+ }
+
+ .notification-tray__sweep {
+   border-radius: 999px;
+   border: 1px solid rgba(255, 255, 255, 0.2);
+   background: rgba(255, 255, 255, 0.05);
+   color: #fdfdfd;
+   padding: 0.45rem 0.9rem;
+   font-size: 0.8rem;
+   font-weight: 600;
+   cursor: pointer;
+   transition: border-color 0.2s ease, transform 0.2s ease;
+ }
+
+ .notification-tray__sweep:disabled {
+   opacity: 0.5;
+   cursor: not-allowed;
+ }
+
+ .notification-tray__sweep:not(:disabled):hover {
+   border-color: rgba(107, 242, 193, 0.65);
+   transform: translateY(-1px);
+ }
+ 
+ .notification-tray__close {
+   border: none;
+   background: transparent;
+   color: #fff;
+   font-size: 1.4rem;
+   cursor: pointer;
+}
+ 
+ .notification-tray__body {
+   margin-top: 0.75rem;
+   display: flex;
+   flex-direction: column;
+   gap: 0.5rem;
+}
+ 
+ .notification-tray__invite {
+   display: flex;
+   justify-content: space-between;
+   align-items: center;
+   padding: 0.6rem 0.75rem;
+   border-radius: 14px;
+   border: 1px solid rgba(255, 255, 255, 0.12);
+   background: rgba(255, 255, 255, 0.05);
+}
+ 
+ .notification-tray__state {
+   font-size: 0.9rem;
+   margin: 0.5rem 0;
+}
+ 
+ .notification-tray__state--error {
+   color: #ff7b7b;
+}
+ 
+ .notification-tray__body ul {
+   list-style: none;
+   margin: 0;
+   padding: 0;
+   display: flex;
+   flex-direction: column;
+   gap: 0.75rem;
+}
+ 
+ .notification-tray__item {
+   border-radius: 18px;
+   border: 1px solid rgba(255, 255, 255, 0.08);
+   padding: 0.85rem 0.95rem;
+   display: flex;
+   justify-content: space-between;
+   gap: 0.8rem;
+   background: rgba(255, 255, 255, 0.02);
+   align-items: center;
+ }
+
+ .notification-tray__item--unread {
+   border-color: rgba(255, 190, 94, 0.9);
+   background: rgba(255, 190, 94, 0.08);
+   box-shadow: 0 18px 35px rgba(255, 190, 94, 0.15);
+ }
+
+ .notification-tray__item--read {
+   opacity: 0.85;
+ }
+
+ .notification-tray__item-main {
+   display: flex;
+   gap: 0.85rem;
+   align-items: center;
+ }
+
+ .notification-tray__dot {
+   width: 10px;
+   height: 10px;
+   border-radius: 50%;
+   background: var(--mint);
+   box-shadow: 0 0 12px rgba(107, 242, 193, 0.5);
+ }
+
+ .notification-tray__item--read .notification-tray__dot {
+   background: rgba(255, 255, 255, 0.3);
+   box-shadow: none;
+ }
+
+ .notification-tray__title {
+   font-weight: 600;
+   margin-bottom: 0.15rem;
+ }
+
+ .notification-tray__body-text {
+   margin: 0;
+   font-size: 0.9rem;
+   color: rgba(255, 255, 255, 0.78);
+ }
+
+ .notification-tray__item-meta {
+   display: flex;
+   flex-direction: column;
+   align-items: flex-end;
+   gap: 0.35rem;
+ }
+
+ .notification-tray time {
+   font-size: 0.75rem;
+   color: rgba(255, 255, 255, 0.55);
+ }
+
+ .notification-tray__mark {
+   border: none;
+   border-radius: 999px;
+   background: rgba(138, 123, 255, 0.25);
+   color: #e3dfff;
+   font-size: 0.72rem;
+   padding: 0.25rem 0.7rem;
+   font-weight: 600;
+   cursor: pointer;
+   transition: transform 0.2s ease, background 0.2s ease;
+ }
+
+ .notification-tray__mark:hover {
+   transform: translateY(-1px);
+   background: rgba(138, 123, 255, 0.4);
+ }
+ 
+@keyframes trayLeftPop {
+  0% {
+    opacity: 0;
+    transform: translate3d(-20px, 12px, 0) scale(0.9);
+  }
+  60% {
+    opacity: 1;
+    transform: translate3d(4px, -2px, 0) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+ @media (max-width: 720px) {
+   .notification-tray {
+    position: fixed;
+    top: 70px;
+    right: 0.75rem;
+    left: 0.75rem;
+    width: auto;
+    bottom: auto;
+   }
+ }
 
 .friend-detail__contact {
   margin: 0;
@@ -1022,6 +1228,54 @@ button.pill--muted:hover {
   justify-content: flex-end;
 }
 
+.app-nav__notify {
+  position: relative;
+}
+
+.app-nav__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.app-nav__icon:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+}
+
+.app-nav__bell-svg {
+  width: 20px;
+  height: 20px;
+}
+
+.app-nav__badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffbe5e, #ff7f7f);
+  color: #0c0e1a;
+  font-size: 0.72rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 15px rgba(255, 136, 102, 0.35);
+  border: 2px solid rgba(5, 6, 15, 0.85);
+}
+
 .app-nav__pill,
 .app-nav__cta {
   border-radius: 999px;
@@ -1041,7 +1295,6 @@ button.pill--muted:hover {
 .app-nav__pill--accent {
   border-color: rgba(107, 242, 193, 0.35);
 }
-
 .app-nav__pill--active {
   border-color: rgba(107, 242, 193, 0.65);
   background: rgba(107, 242, 193, 0.18);

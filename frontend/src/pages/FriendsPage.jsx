@@ -4,7 +4,7 @@ import AppNav from '../components/AppNav.jsx'
 import FriendBreakdownModal from '../components/FriendBreakdownModal.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import * as friendsApi from '../services/friendsApi'
-import { emitInvitesUpdated } from '../utils/inviteEvents'
+import { emitInvitesUpdated, INVITES_UPDATED_EVENT } from '../utils/inviteEvents'
 
 const FriendsPage = () => {
   const location = useLocation()
@@ -59,6 +59,19 @@ const FriendsPage = () => {
   useEffect(() => {
     if (!accessToken) return
     loadData()
+  }, [accessToken, loadData])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const handler = () => {
+      if (accessToken) {
+        loadData()
+      }
+    }
+    window.addEventListener(INVITES_UPDATED_EVENT, handler)
+    return () => {
+      window.removeEventListener(INVITES_UPDATED_EVENT, handler)
+    }
   }, [accessToken, loadData])
 
   const filteredFriends = useMemo(() => {

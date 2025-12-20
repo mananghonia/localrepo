@@ -10,8 +10,9 @@ from django.utils.crypto import get_random_string
 from mongoengine.queryset.visitor import Q
 
 from expenses.models import Activity, Expense
+from realtime import pubsub as realtime_pubsub
 
-from .models import EmailOTP, User, FriendInvite, Friendship, FriendSettlement
+from .models import EmailOTP, User, FriendInvite, Friendship, FriendSettlement, Notification
 
 
 OTP_ALLOWED_CHARS = '0123456789'
@@ -126,6 +127,9 @@ def ensure_friendship(user_a: User, user_b: User) -> None:
         Friendship.objects(user=owner, friend=friend).update_one(
             set__friend=friend,
             set_on_insert__created_at=_now(),
+            set_on_insert__group_balances={},
+            set_on_insert__group_labels={},
+            set_on_insert__group_snapshot_version=1,
             upsert=True,
         )
 
@@ -158,6 +162,28 @@ def send_friend_invite_email(invite: FriendInvite) -> None:
         raise InviteDeliveryError("Could not send invite email right now.") from exc
 
 
+def record_notification(target: User, actor: User, kind: str, title: str, body: str = '', data: dict | None = None):
+    if not target or not actor:
+        return None
+    if str(target.id) == str(actor.id):
+        return None
+    notification = Notification(
+        user=target,
+        actor=actor,
+        kind=kind,
+        title=title or 'Balance update',
+        body=body or '',
+        data=data or {},
+    )
+    notification.save()
+    try:
+        unread_count = Notification.objects(user=target, is_read=False).count()
+    except Exception:
+        unread_count = None
+    realtime_pubsub.notify_notification_refresh(target, unread_count, event='new')
+    return notification
+
+
 def _round_currency(value) -> float:
     try:
         return round(float(value), 2)
@@ -175,6 +201,15 @@ def slugify_group_label(raw: str) -> str:
     return slug or 'general'
 
 
+def _settlement_delta_for_user(record: FriendSettlement, user: User) -> float:
+    if not record or not user:
+        return 0.0
+    direction_sign = 1 if record.direction == 'owes_you' else -1
+    signed_amount = direction_sign * _round_currency(record.amount)
+    is_initiator = str(record.initiator.id) == str(user.id)
+    return -signed_amount if is_initiator else signed_amount
+
+
 def apply_balance_change(user: User, friend: User, delta: float, group_label: str) -> None:
     if not user or not friend or user.id == friend.id:
         return
@@ -186,7 +221,7 @@ def apply_balance_change(user: User, friend: User, delta: float, group_label: st
         set_on_insert__created_at=_now(),
         set_on_insert__group_balances={},
         set_on_insert__group_labels={},
-        set_on_insert__group_snapshot_version=0,
+        set_on_insert__group_snapshot_version=1,
         upsert=True,
     )
     friendship = Friendship.objects(user=user, friend=friend).first()
@@ -232,12 +267,33 @@ def compute_group_snapshot(user: User, friend: User):
     return balances, labels
 
 
+def apply_settlement_offsets(user: User, friend: User, balances: dict, labels: dict) -> None:
+    settlements = FriendSettlement.objects(
+        Q(initiator=user, counterparty=friend) | Q(initiator=friend, counterparty=user)
+    )
+    for record in settlements:
+        slug = record.group_slug or slugify_group_label(record.group_label)
+        delta = _settlement_delta_for_user(record, user)
+        if not delta:
+            continue
+        balances[slug] = _round_currency(balances.get(slug, 0.0) + delta)
+        if slug not in labels and record.group_label:
+            labels[slug] = normalize_group_label(record.group_label)
+
+
 def _hydrate_group_balances(friendship: Friendship) -> Friendship:
     if not friendship:
         return None
-    if friendship.group_balances and getattr(friendship, 'group_snapshot_version', 0) >= 1:
+    snapshot_version = getattr(friendship, 'group_snapshot_version', 0)
+    if snapshot_version >= 1 and friendship.group_balances is not None:
+        return friendship
+    # If balances already exist but version flag never flipped, trust the stored values.
+    if friendship.group_balances:
+        Friendship.objects(id=friendship.id).update(set__group_snapshot_version=1)
+        friendship.reload()
         return friendship
     balances, labels = compute_group_snapshot(friendship.user, friendship.friend)
+    apply_settlement_offsets(friendship.user, friendship.friend, balances, labels)
     total = _round_currency(sum(balances.values())) if balances else 0.0
     update_payload = {
         'set__group_balances': balances or {},
@@ -276,7 +332,7 @@ def build_friend_breakdown(user: User, friend: User) -> dict:
         else:
             you_owe += absolute
     groups.sort(key=lambda entry: entry['amount'], reverse=True)
-    return {
+    payload = {
         "groups": groups,
         "totals": {
             "you_owe": _round_currency(you_owe),
@@ -284,6 +340,9 @@ def build_friend_breakdown(user: User, friend: User) -> dict:
         },
         "balance": _round_currency(friendship.balance),
     }
+    # Keep the counterparty view aligned with the hydrated snapshot the user just loaded.
+    sync_friendship_views(user, friend)
+    return payload
 
 
 def prune_group_entries(user: User, friend: User, slugs=None) -> None:
@@ -301,6 +360,34 @@ def prune_group_entries(user: User, friend: User, slugs=None) -> None:
             modified = True
     if modified:
         friendship.save()
+
+
+def sync_friendship_views(user: User, friend: User) -> None:
+    """Force the counterparty view to mirror the canonical user's balances."""
+    if not user or not friend or user.id == friend.id:
+        return
+    ensure_friendship(user, friend)
+    source = Friendship.objects(user=user, friend=friend).first()
+    target = Friendship.objects(user=friend, friend=user).first()
+    if not source or not target:
+        return
+    source = _hydrate_group_balances(source)
+    mirrored = {}
+    for slug, amount in (source.group_balances or {}).items():
+        rounded = _round_currency(-amount)
+        if abs(rounded) < 0.01:
+            continue
+        mirrored[slug] = rounded
+    Friendship.objects(id=target.id).update(
+        set__group_balances=mirrored,
+        set__group_labels=source.group_labels or {},
+        set__balance=_round_currency(-(source.balance or 0.0)),
+        set__group_snapshot_version=max(
+            getattr(target, 'group_snapshot_version', 0),
+            getattr(source, 'group_snapshot_version', 0),
+            1,
+        ),
+    )
 
 
 def send_settlement_email(record: FriendSettlement) -> bool:
@@ -357,6 +444,18 @@ def apply_group_settlement(user: User, friend: User, group_slug: str, amount: fl
     email_sent = send_settlement_email(record)
     prune_group_entries(user, friend, [group_slug])
     prune_group_entries(friend, user, [group_slug])
+    sync_friendship_views(user, friend)
+    record_notification(
+        friend,
+        user,
+        Notification.KIND_SETTLEMENT,
+        f"{user.name} settled {label}",
+        f"{user.name} marked ${requested:.2f} as settled in {label}.",
+        {
+            "group": label,
+            "amount": requested,
+        },
+    )
     return record, email_sent
 
 
@@ -382,4 +481,5 @@ def apply_full_settlement(user: User, friend: User):
         total_amount += record.amount
 
     breakdown = build_friend_breakdown(user, friend)
+    sync_friendship_views(user, friend)
     return settlements, _round_currency(total_amount), breakdown

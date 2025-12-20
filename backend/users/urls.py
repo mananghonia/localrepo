@@ -12,6 +12,9 @@ from .views import (
     FriendSettlementView,
     FriendFullSettlementView,
     MongoTokenRefreshView,
+    NotificationListView,
+    NotificationReadAllView,
+    NotificationReadView,
 )
 
 urlpatterns = [
@@ -27,4 +30,7 @@ urlpatterns = [
     path('friends/invite/', FriendInviteCreateView.as_view()),
     path('friends/invites/', FriendInviteListView.as_view()),
     path('friends/invites/<str:invite_id>/<str:action>/', FriendInviteDecisionView.as_view()),
+    path('notifications/', NotificationListView.as_view()),
+    path('notifications/read-all/', NotificationReadAllView.as_view()),
+    path('notifications/<str:notification_id>/read/', NotificationReadView.as_view()),
 ]

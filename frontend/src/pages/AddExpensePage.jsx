@@ -3,6 +3,7 @@ import AppNav from '../components/AppNav.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import * as friendsApi from '../services/friendsApi'
 import * as expensesApi from '../services/expensesApi'
+import { emitNotificationsUpdated } from '../utils/notificationEvents'
 
 const directorySeed = [
   { id: 'alex', name: 'Alex Garcia', username: 'alexg' },
@@ -233,6 +234,7 @@ const AddExpensePage = () => {
       )
 
       setSaveStatus({ message: 'Expense saved and everyone was notified.', error: '' })
+  emitNotificationsUpdated()
       setExpenseName('')
       setGroupName('')
       setTotal('')

@@ -1,11 +1,18 @@
+import logging
+import smtplib
+
+from django.core.mail import send_mail
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from users.models import Friendship, User
+from users.models import Friendship, User, Notification
 from users import services
 
 from .models import Activity, Expense, ExpenseParticipant
+
+
+logger = logging.getLogger(__name__)
 
 
 def _serialize_user_min(user):
@@ -59,6 +66,39 @@ def _list_names(parts):
 	if len(names) == 1:
 		return names[0]
 	return ', '.join(names[:-1]) + f" & {names[-1]}"
+
+
+def _notify_expense_participants(expense, payer, friend_parts, group_label, expense_title):
+	"""Send email notifications to every non-payer participant when an expense is logged."""
+	failed_recipients = []
+	for part in friend_parts:
+		target_email = part.user.email
+		if not target_email:
+			continue
+		lines = [
+			f"{payer.name} logged {expense_title} in {group_label}.",
+			f"You owe ${part.amount:.2f} to {payer.name} for this split.",
+			'',
+			"Open Balance Studio to review the updated balances.",
+		]
+		try:
+			send_mail(
+				subject=f"{payer.name} added an expense",
+				message='\n'.join(lines),
+				from_email=services.SETTLEMENT_FROM_EMAIL,
+				recipient_list=[target_email],
+				fail_silently=False,
+			)
+		except (smtplib.SMTPException, TimeoutError, OSError) as exc:
+			failed_recipients.append((target_email, str(exc)))
+		except Exception as exc:
+			failed_recipients.append((target_email, f"unexpected error: {exc}"))
+
+	if failed_recipients:
+		recipients = ', '.join(email for email, _ in failed_recipients)
+		logger.warning("Failed to send expense email to %s", recipients)
+		for email, reason in failed_recipients:
+			logger.debug("Email delivery failure (%s): %s", email, reason)
 
 
 class ExpenseListCreateView(APIView):
@@ -182,6 +222,20 @@ class ExpenseListCreateView(APIView):
 				amount=round(-part.amount, 2),
 				status='due',
 			).save()
+			services.record_notification(
+				part.user,
+				user,
+				Notification.KIND_EXPENSE,
+				f"{user.name} added {expense_title}",
+				f"You owe ${part.amount:.2f} for {group_label or services.GROUP_FALLBACK_LABEL}.",
+				{
+					"expense_id": str(expense.id),
+					"group": group_label or services.GROUP_FALLBACK_LABEL,
+					"amount": round(float(part.amount or 0), 2),
+				},
+			)
+
+		_notify_expense_participants(expense, user, friend_parts, group_label, expense_title)
 
 		return Response(serialize_expense(expense), status=status.HTTP_201_CREATED)
 

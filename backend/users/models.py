@@ -133,3 +133,27 @@ class EmailOTP(Document):
     def mark_used(self):
         self.used = True
         self.save()
+
+class Notification(Document):
+    KIND_EXPENSE = 'expense_logged'
+    KIND_SETTLEMENT = 'settlement_recorded'
+
+    user = ReferenceField('User', required=True, reverse_delete_rule=CASCADE)
+    actor = ReferenceField('User', required=True, reverse_delete_rule=CASCADE)
+    kind = StringField(required=True, choices=[KIND_EXPENSE, KIND_SETTLEMENT])
+    title = StringField(required=True)
+    body = StringField()
+    data = DictField(default=dict)
+    is_read = BooleanField(default=False)
+    created_at = DateTimeField(default=datetime.utcnow)
+
+    meta = {
+        'collection': 'notifications',
+        'indexes': [
+            {'fields': ['user', '-created_at']},
+            {'fields': ['user', 'is_read']},
+        ],
+    }
+
+    def __str__(self):
+        return f"Notification({self.user_id}:{self.kind})"
