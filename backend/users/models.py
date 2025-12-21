@@ -134,6 +134,28 @@ class EmailOTP(Document):
         self.used = True
         self.save()
 
+
+class PasswordResetToken(Document):
+    user = ReferenceField('User', required=True, reverse_delete_rule=CASCADE)
+    token_hash = StringField(required=True, unique=True)
+    expires_at = DateTimeField(required=True)
+    used = BooleanField(default=False)
+    created_at = DateTimeField(default=datetime.utcnow)
+
+    meta = {
+        'collection': 'password_reset_tokens',
+        'indexes': [
+            {'fields': ['user', '-created_at']},
+            {'fields': ['expires_at'], 'expireAfterSeconds': 0},
+            'token_hash',
+        ],
+    }
+
+    def mark_used(self):
+        self.used = True
+        self.save()
+
+
 class Notification(Document):
     KIND_EXPENSE = 'expense_logged'
     KIND_SETTLEMENT = 'settlement_recorded'

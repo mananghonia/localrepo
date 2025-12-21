@@ -15,6 +15,10 @@ from .views import (
     NotificationListView,
     NotificationReadAllView,
     NotificationReadView,
+    ProfileUpdateView,
+    PasswordChangeView,
+    PasswordResetRequestView,
+    PasswordResetConfirmView,
 )
 
 urlpatterns = [
@@ -23,6 +27,10 @@ urlpatterns = [
     path('token/refresh/', MongoTokenRefreshView.as_view(), name='token_refresh'),
     path('google/', GoogleAuthView.as_view()),
     path('request-otp/', OTPRequestView.as_view()),
+    path('profile/', ProfileUpdateView.as_view()),
+    path('password/change/', PasswordChangeView.as_view()),
+    path('password/reset/request/', PasswordResetRequestView.as_view()),
+    path('password/reset/confirm/', PasswordResetConfirmView.as_view()),
     path('friends/', FriendListView.as_view()),
     path('friends/<str:friend_id>/ledger/', FriendBreakdownView.as_view()),
     path('friends/<str:friend_id>/settlements/', FriendSettlementView.as_view()),

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import * as authApi from '../services/authApi'
+import { authorizedRequest } from '../services/apiClient'
 import { openRealtimeSocket } from '../services/realtimeClient'
 import { emitInvitesUpdated } from '../utils/inviteEvents'
 import { emitNotificationsUpdated } from '../utils/notificationEvents'
@@ -46,6 +47,16 @@ export const AuthProvider = ({ children }) => {
     return normalized
   }
 
+  const updateStoredUser = (nextUser) => {
+    setAuthState((prev) => {
+      const updated = { ...prev, user: nextUser }
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
+      }
+      return updated
+    })
+  }
+
   const signup = async (form) => {
     const data = await authApi.signup(form)
     return persist(data)
@@ -80,6 +91,19 @@ export const AuthProvider = ({ children }) => {
       window.localStorage.removeItem(STORAGE_KEY)
     }
   }
+
+  const authorizedFetch = useCallback(
+    (path, options = {}) =>
+      authorizedRequest(
+        path,
+        {
+          accessToken: authState.accessToken,
+          refreshAccessToken,
+        },
+        options,
+      ),
+    [authState.accessToken, refreshAccessToken],
+  )
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
@@ -191,9 +215,11 @@ export const AuthProvider = ({ children }) => {
       login,
       googleLogin,
       refreshAccessToken,
+      authorizedFetch,
+      setUser: updateStoredUser,
       logout,
     }),
-    [authState, refreshAccessToken],
+    [authState, refreshAccessToken, authorizedFetch],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

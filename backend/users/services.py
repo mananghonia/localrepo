@@ -12,10 +12,11 @@ from mongoengine.queryset.visitor import Q
 from expenses.models import Activity, Expense
 from realtime import pubsub as realtime_pubsub
 
-from .models import EmailOTP, User, FriendInvite, Friendship, FriendSettlement, Notification
+from .models import EmailOTP, PasswordResetToken, User, FriendInvite, Friendship, FriendSettlement, Notification
 
 
 OTP_ALLOWED_CHARS = '0123456789'
+TOKEN_ALLOWED_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 GROUP_FALLBACK_LABEL = 'Personal split'
 SETTLEMENT_FROM_EMAIL = 'splitwise676@gmail.com'
 logger = logging.getLogger(__name__)
@@ -115,6 +116,77 @@ def build_unique_username(seed: str) -> str:
         candidate = f"{base}{counter}"
         counter += 1
     return candidate
+
+
+def _token_expiration():
+    minutes = int(getattr(settings, 'PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES', 15))
+    return _now() + timedelta(minutes=minutes)
+
+
+def issue_password_reset_token(user: User) -> str:
+    """Issues a password reset token and sends it via email. Returns the raw token."""
+    # Invalidate previous tokens
+    PasswordResetToken.objects(user=user, used=False).update(set__used=True)
+
+    # Generate secure random token
+    raw_token = get_random_string(length=64, allowed_chars=TOKEN_ALLOWED_CHARS)
+    token = PasswordResetToken(
+        user=user,
+        token_hash=make_password(raw_token),
+        expires_at=_token_expiration(),
+    )
+    token.save()
+
+    # Send email with reset link
+    reset_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/reset-password?token={raw_token}"
+    message_lines = [
+        f"Hi {user.name},",
+        '',
+        'You requested to reset your password. Click the link below to set a new password:',
+        '',
+        reset_url,
+        '',
+        f"This link expires in {getattr(settings, 'PASSWORD_RESET_TOKEN_EXPIRATION_MINUTES', 15)} minutes.",
+        '',
+        'If you did not request this, you can safely ignore this email.',
+    ]
+    try:
+        send_mail(
+            subject='Password Reset Request',
+            message='\n'.join(message_lines),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+    except smtplib.SMTPException as exc:
+        logger.exception("Failed to send password reset email to %s", user.email)
+        raise OTPDeliveryError("Unable to send password reset email right now. Please try again later.") from exc
+
+    return raw_token
+
+
+def verify_password_reset_token(raw_token: str) -> User | None:
+    """Verifies a password reset token and returns the associated user if valid."""
+    # Find all active tokens and check each one
+    tokens = PasswordResetToken.objects(used=False, expires_at__gt=_now()).order_by('-created_at')
+    
+    for token_obj in tokens:
+        if check_password(raw_token, token_obj.token_hash):
+            return token_obj.user
+    
+    return None
+
+
+def consume_password_reset_token(raw_token: str) -> bool:
+    """Marks a password reset token as used. Returns True if successful."""
+    tokens = PasswordResetToken.objects(used=False, expires_at__gt=_now()).order_by('-created_at')
+    
+    for token_obj in tokens:
+        if check_password(raw_token, token_obj.token_hash):
+            token_obj.mark_used()
+            return True
+    
+    return False
 
 
 def ensure_friendship(user_a: User, user_b: User) -> None:

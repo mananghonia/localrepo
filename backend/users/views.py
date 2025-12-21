@@ -5,7 +5,7 @@ from django.utils.crypto import get_random_string
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenViewBase
 from google.oauth2 import id_token
@@ -432,3 +432,108 @@ class NotificationReadAllView(APIView):
 
 class MongoTokenRefreshView(TokenViewBase):
     serializer_class = MongoTokenRefreshSerializer
+
+
+class ProfileUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request):
+        user = request.user
+        name = request.data.get('name', '').strip()
+        username = request.data.get('username', '').strip()
+
+        if name:
+            user.name = name
+        
+        if username:
+            # Check if username is already taken by another user
+            existing = User.objects(username=username).first()
+            if existing and str(existing.id) != str(user.id):
+                return Response({"error": "Username already taken."}, status=400)
+            user.username = username
+        
+        user.save()
+        return Response({
+            "user": serialize_user(user),
+            "message": "Profile updated successfully."
+        })
+
+
+class PasswordChangeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        old_password = request.data.get('old_password', '')
+        new_password = request.data.get('new_password', '')
+        confirm_password = request.data.get('confirm_password', '')
+
+        if not old_password or not new_password or not confirm_password:
+            return Response({"error": "All password fields are required."}, status=400)
+        
+        if new_password != confirm_password:
+            return Response({"error": "New passwords do not match."}, status=400)
+        
+        if len(new_password) < 6:
+            return Response({"error": "Password must be at least 6 characters."}, status=400)
+        
+        if not user.check_password(old_password):
+            return Response({"error": "Current password is incorrect."}, status=400)
+        
+        user.set_password(new_password)
+        user.save()
+        
+        return Response({"message": "Password changed successfully."})
+
+
+class PasswordResetRequestView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email', '').strip().lower()
+        
+        if not email:
+            return Response({"error": "Email is required."}, status=400)
+        
+        user = User.objects(email=email).first()
+        
+        # Always return success to prevent email enumeration
+        if not user:
+            return Response({"message": "If an account with that email exists, a password reset link has been sent."})
+        
+        try:
+            services.issue_password_reset_token(user)
+        except services.OTPDeliveryError as e:
+            return Response({"error": str(e)}, status=500)
+        
+        return Response({"message": "If an account with that email exists, a password reset link has been sent."})
+
+
+class PasswordResetConfirmView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = request.data.get('token', '').strip()
+        new_password = request.data.get('new_password', '')
+        confirm_password = request.data.get('confirm_password', '')
+
+        if not token or not new_password or not confirm_password:
+            return Response({"error": "Token and password fields are required."}, status=400)
+        
+        if new_password != confirm_password:
+            return Response({"error": "Passwords do not match."}, status=400)
+        
+        if len(new_password) < 6:
+            return Response({"error": "Password must be at least 6 characters."}, status=400)
+        
+        user = services.verify_password_reset_token(token)
+        
+        if not user:
+            return Response({"error": "Invalid or expired reset token."}, status=400)
+        
+        user.set_password(new_password)
+        user.save()
+        
+        services.consume_password_reset_token(token)
+        
+        return Response({"message": "Password reset successfully. You can now log in with your new password."})
