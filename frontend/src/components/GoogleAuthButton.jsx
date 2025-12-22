@@ -1,11 +1,10 @@
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import { GoogleLogin } from '@react-oauth/google'
 
 const GoogleAuthButton = ({ onCredential, onError }) => {
   const hasClient = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID)
   const [pending, setPending] = useState(false)
   const [status, setStatus] = useState('')
-  const noteId = useId()
 
   if (!hasClient) {
     return (
@@ -60,21 +59,11 @@ const GoogleAuthButton = ({ onCredential, onError }) => {
         </div>
         <span className="google-badge">Beta</span>
       </div>
-      <p className="google-note" id={noteId}>
-        Use Google only after completing email sign-up—
-        <span className="google-note__accent">
-          we match the Google email to an existing workspace member.
-        </span>
-      </p>
       {status ? (
         <p className="google-status" aria-live="polite">
           {status}
         </p>
-      ) : 
-        <p className="google-hint" aria-live="polite">
-          Tap the button to reconnect instantly with an approved Google account.
-        </p>
-      }
+      ) : null}
     </div>
   )
 }

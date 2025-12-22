@@ -68,16 +68,19 @@ const LoginPage = () => {
           onChange={handleChange}
           autoComplete="current-password"
         />
+        <div className="auth-inline-link">
+          <Link to="/forgot-password">Forgot password?</Link>
+        </div>
         <button className="primary-btn" type="submit" disabled={pending}>
           {pending ? 'Signing you in…' : 'Log in'}
         </button>
       </form>
-      <div className="link-row" style={{ marginTop: '1rem' }}>
-        <span>No account yet?</span>
-        <Link to="/signup">Create one</Link>
-      </div>
-      <div style={{ marginTop: '1.25rem' }}>
+      <div className="auth-google-stack">
         <GoogleAuthButton onCredential={handleGoogle} onError={setError} />
+        <p className="auth-meta-note auth-create-note">If you don&apos;t have account create one.</p>
+        <Link className="auth-create-link" to="/signup">
+          Create an account
+        </Link>
       </div>
     </AuthShell>
   )

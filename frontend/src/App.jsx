@@ -8,6 +8,7 @@ import FriendsPage from './pages/FriendsPage.jsx'
 import ActivityPage from './pages/ActivityPage.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import ResetPasswordPage from './pages/ResetPasswordPage.jsx'
+import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
 
 function App() {
   return (
@@ -51,6 +52,7 @@ function App() {
         path="/dashboard"
         element={<Navigate to="/" replace />}
       />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

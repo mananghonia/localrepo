@@ -389,6 +389,75 @@ button.pill--muted:hover {
   text-decoration: none;
 }
 
+.auth-inline-link {
+  display: flex;
+  justify-content: flex-end;
+  font-size: 0.9rem;
+  margin-top: -0.35rem;
+}
+
+.auth-inline-link a {
+  color: var(--mint);
+  text-decoration: none;
+}
+
+.auth-inline-link a:hover {
+  text-decoration: underline;
+}
+
+.auth-google-stack {
+  margin-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.auth-signup-btn,
+.auth-link-btn {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.auth-meta-note {
+  margin: 1rem 0 0;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.5;
+}
+
+.auth-create-note {
+  text-align: center;
+  width: min(100%, 360px);
+  margin: 0.85rem auto 0;
+}
+
+.auth-create-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: min(100%, 360px);
+  min-height: 56px;
+  padding: 0.75rem 1.8rem;
+  margin: 0.9rem auto 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2a2c36, #15161d);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 35px rgba(2, 3, 8, 0.75);
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-create-link:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 22px 38px rgba(2, 3, 8, 0.85);
+}
+
 .google-zone {
   display: flex;
   flex-direction: column;

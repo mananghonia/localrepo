@@ -4,6 +4,35 @@ const baseHeaders = {
   'Content-Type': 'application/json',
 }
 
+const resolveErrorMessage = (payload) => {
+  if (!payload) return null
+  if (typeof payload === 'string') return payload
+
+  if (typeof payload === 'object') {
+    if (payload.error) {
+      const nested = resolveErrorMessage(payload.error)
+      if (nested) return nested
+    }
+    if (payload.detail) {
+      const nested = resolveErrorMessage(payload.detail)
+      if (nested) return nested
+    }
+    if (Array.isArray(payload)) {
+      for (const item of payload) {
+        const nested = resolveErrorMessage(item)
+        if (nested) return nested
+      }
+      return null
+    }
+    for (const value of Object.values(payload)) {
+      const nested = resolveErrorMessage(value)
+      if (nested) return nested
+    }
+  }
+
+  return null
+}
+
 export const authorizedRequest = async (path, auth, options = {}, attempt = 0) => {
   const authConfig = typeof auth === 'string' ? { accessToken: auth } : auth || {}
 
@@ -37,10 +66,8 @@ export const authorizedRequest = async (path, auth, options = {}, attempt = 0) =
     }
   }
 
-  const details =
-    payload?.error ||
-    payload?.detail ||
-    (tokenInvalid ? 'Session expired. Please log in again.' : 'Request failed')
+  const fallback = tokenInvalid ? 'Session expired. Please log in again.' : 'Request failed'
+  const details = resolveErrorMessage(payload) || fallback
   throw new Error(details)
 }
 
