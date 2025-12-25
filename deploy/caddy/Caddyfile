@@ -1,0 +1,7 @@
+{$DOMAIN} {
+  encode gzip
+
+  # Forward everything to the existing Nginx container that serves the SPA
+  # and proxies /api/ and /ws/ to the backend.
+  reverse_proxy web:80
+}

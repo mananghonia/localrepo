@@ -1,0 +1,12 @@
+services:
+  # Disable local Mongo container in favor of a managed MongoDB (e.g., MongoDB Atlas).
+  # You must provide MONGODB_URI and MONGODB_DB_NAME via backend/.env.
+  mongo:
+    profiles: ["local-mongo"]
+
+  backend:
+    environment:
+      # Ensure we don't accidentally use the in-compose Mongo default.
+      # This is just documentation in env form — the real values should come from backend/.env.
+      MONGODB_URI: ${MONGODB_URI}
+      MONGODB_DB_NAME: ${MONGODB_DB_NAME}

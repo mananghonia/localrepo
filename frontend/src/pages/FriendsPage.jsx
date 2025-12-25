@@ -178,135 +178,168 @@ const FriendsPage = () => {
             </div>
           </div>
 
-          {statusMessage ? <p className="status-text status-text--success">{statusMessage}</p> : null}
-          {errorMessage ? <p className="status-text status-text--error">{errorMessage}</p> : null}
+          {statusMessage ? <div className="success-banner">{statusMessage}</div> : null}
+          {errorMessage ? <div className="error-banner">{errorMessage}</div> : null}
 
-          <label className="input-label" htmlFor="friends-search">
-            Search friends
-          </label>
-          <input
-            id="friends-search"
-            className="text-input text-input--frosted"
-            type="text"
-            placeholder="Search by name or username"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-          />
-
-          {invites.length ? (
-            <div className="friends-invites" id="invites">
-              <div className="friends-invites__header">
-                Pending invitations ({invites.length})
+          <div className="friends-layout">
+            <section className="friends-pane friends-pane--ledger">
+              <div className="friends-pane__header">
+                <div>
+                  <h2>Friends</h2>
+                  <p className="hint-text">Open a friend to review balances and groups.</p>
+                </div>
+                <span className="pill pill--muted">{filteredFriends.length || 0} total</span>
               </div>
-              <ul>
-                {invites.map((invite) => (
-                  <li key={invite.id} className="friends-invites__item">
-                    <div>
-                      <strong>{invite.inviter.name}</strong>
-                      <p className="hint-text">{invite.note || 'No message provided.'}</p>
-                    </div>
-                    <div className="friends-invites__actions">
-                      <button type="button" className="pill pill--success" onClick={() => handleInviteResponse(invite.id, 'accept')}>
-                        Accept
-                      </button>
-                      <button type="button" className="pill pill--muted" onClick={() => handleInviteResponse(invite.id, 'reject')}>
-                        Reject
-                      </button>
-                    </div>
-                  </li>
-                ))}
+
+              <label className="input-label" htmlFor="friends-search">
+                Search friends
+              </label>
+              <input
+                id="friends-search"
+                className="text-input text-input--frosted"
+                type="text"
+                placeholder="Search by name, username, or email"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+              />
+
+              <ul className="friends-ledger">
+                {loading ? (
+                  <li className="friends-ledger__empty">Loading...</li>
+                ) : filteredFriends.length ? (
+                  filteredFriends.map((friend) => {
+                    const numericBalance = Number(friend.balance) || 0
+                    const isCredit = numericBalance >= 0
+                    const isSettled = Math.abs(numericBalance) < 0.01
+                    const amount = Math.abs(numericBalance).toFixed(2)
+                    const amountClass = `friends-ledger__amount ${
+                      isSettled
+                        ? 'friends-ledger__amount--neutral'
+                        : isCredit
+                          ? 'friends-ledger__amount--positive'
+                          : 'friends-ledger__amount--negative'
+                    }`
+                    return (
+                      <li
+                        key={friend.id}
+                        className="friends-ledger__item friends-ledger__item--action"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => handleFriendClick(friend)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            handleFriendClick(friend)
+                          }
+                        }}
+                      >
+                        <div>
+                          <strong>{friend.name}</strong>
+                          <p className="hint-text">
+                            @{friend.username || 'friend'} · {friend.email}
+                          </p>
+                        </div>
+                        <span className={amountClass}>
+                          {isSettled ? 'Settled' : `${isCredit ? '+' : '-'}$${amount}`}
+                        </span>
+                      </li>
+                    )
+                  })
+                ) : (
+                  <li className="friends-ledger__empty">No friends match your search.</li>
+                )}
               </ul>
-            </div>
-          ) : null}
+            </section>
 
-          <form ref={inviteFormRef} className="friends-invite-panel" onSubmit={handleInviteSubmit}>
-            <div className="friends-invite-panel__header">
-              <div>
-                <p className="tag-pill pill--soft friends-invite-panel__tag">Invite via email</p>
-                <h3>Send a personal invite</h3>
-                <p className="hint-text">
-                  Share someone&rsquo;s email and an optional note. We&rsquo;ll deliver the invite instantly.
-                </p>
-              </div>
-            </div>
-            <div className="friends-invite-panel__fields">
-              <div className="field-block">
-                <label className="input-label" htmlFor="invite-email">
-                  Email address
-                </label>
-                <input
-                  id="invite-email"
-                  type="email"
-                  className="text-input text-input--frosted"
-                  placeholder="friend@email.com"
-                  value={inviteForm.email}
-                  onChange={(event) =>
-                    setInviteForm((prev) => ({ ...prev, email: event.target.value }))
-                  }
-                />
-              </div>
-              <div className="field-block">
-                <label className="input-label" htmlFor="invite-note">
-                  Add a note (optional)
-                </label>
-                <textarea
-                  id="invite-note"
-                  rows={3}
-                  className="text-input text-input--frosted friends-invite-panel__note"
-                  placeholder="Let them know why you&rsquo;re inviting them"
-                  value={inviteForm.note}
-                  onChange={(event) =>
-                    setInviteForm((prev) => ({ ...prev, note: event.target.value }))
-                  }
-                />
-              </div>
-              <button className="primary-btn friends-invite-panel__cta" type="submit">
-                Send invite
-              </button>
-            </div>
-          </form>
+            <aside className="friends-pane friends-pane--invites">
+              {invites.length ? (
+                <div className="friends-invites" id="invites">
+                  <div className="friends-invites__header">
+                    <h3>Pending invitations</h3>
+                    <span className="pill pill--warning">{invites.length}</span>
+                  </div>
+                  <ul className="friends-invites__list">
+                    {invites.map((invite) => (
+                      <li key={invite.id} className="friends-invites__item">
+                        <div>
+                          <strong>{invite.inviter.name}</strong>
+                          <p className="hint-text">{invite.note || 'No message provided.'}</p>
+                        </div>
+                        <div className="friends-invites__actions">
+                          <button
+                            type="button"
+                            className="pill pill--success"
+                            onClick={() => handleInviteResponse(invite.id, 'accept')}
+                          >
+                            Accept
+                          </button>
+                          <button
+                            type="button"
+                            className="pill pill--muted"
+                            onClick={() => handleInviteResponse(invite.id, 'reject')}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="friends-empty-callout" id="invites">
+                  <p className="input-label">No pending invitations</p>
+                  <p className="hint-text">When someone invites you, it will show up here.</p>
+                </div>
+              )}
 
-          <div className="friends-ledger__header">
-            <h2>Friends</h2>
-            <span>{filteredFriends.length || 0} total</span>
-          </div>
-
-          <ul className="friends-ledger">
-            {loading ? (
-              <li className="friends-ledger__empty">Loading...</li>
-            ) : filteredFriends.length ? (
-              filteredFriends.map((friend) => {
-                const isCredit = Number(friend.balance) >= 0
-                const amount = Math.abs(Number(friend.balance) || 0).toFixed(2)
-                const amountClass = `friends-ledger__amount ${
-                  isCredit ? 'friends-ledger__amount--positive' : 'friends-ledger__amount--negative'
-                }`
-                return (
-                  <li
-                    key={friend.id}
-                    className="friends-ledger__item friends-ledger__item--action"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => handleFriendClick(friend)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        handleFriendClick(friend)
+              <form ref={inviteFormRef} className="friends-invite-panel" onSubmit={handleInviteSubmit}>
+                <div className="friends-invite-panel__header">
+                  <div>
+                    <p className="tag-pill pill--soft friends-invite-panel__tag">Invite via email</p>
+                    <h3>Send a personal invite</h3>
+                    <p className="hint-text">
+                      Share someone&rsquo;s email and an optional note. We&rsquo;ll deliver the invite instantly.
+                    </p>
+                  </div>
+                </div>
+                <div className="friends-invite-panel__fields">
+                  <div className="field-block">
+                    <label className="input-label" htmlFor="invite-email">
+                      Email address
+                    </label>
+                    <input
+                      id="invite-email"
+                      type="email"
+                      className="text-input text-input--frosted"
+                      placeholder="friend@email.com"
+                      value={inviteForm.email}
+                      onChange={(event) =>
+                        setInviteForm((prev) => ({ ...prev, email: event.target.value }))
                       }
-                    }}
-                  >
-                    <div>
-                      <strong>{friend.name}</strong>
-                      <p className="hint-text">@{friend.username || 'friend'} · {friend.email}</p>
-                    </div>
-                    <span className={amountClass}>{isCredit ? '+' : '-'}${amount}</span>
-                  </li>
-                )
-              })
-            ) : (
-              <li className="friends-ledger__empty">No friends match your search.</li>
-            )}
-          </ul>
+                    />
+                  </div>
+                  <div className="field-block">
+                    <label className="input-label" htmlFor="invite-note">
+                      Add a note (optional)
+                    </label>
+                    <textarea
+                      id="invite-note"
+                      rows={3}
+                      className="text-input text-input--frosted friends-invite-panel__note"
+                      placeholder="Let them know why you&rsquo;re inviting them"
+                      value={inviteForm.note}
+                      onChange={(event) =>
+                        setInviteForm((prev) => ({ ...prev, note: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <button className="primary-btn friends-invite-panel__cta" type="submit">
+                    Send invite
+                  </button>
+                </div>
+              </form>
+            </aside>
+          </div>
         </article>
       </div>
       {selectedFriend ? (

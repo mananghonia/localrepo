@@ -31,9 +31,10 @@ const readPersistedState = () => {
 
 export const AuthProvider = ({ children }) => {
   const [authState, setAuthState] = useState(() => readPersistedState())
-  const realtimeRef = useRef({ socket: null, reconnectTimer: null, stopped: false })
+  const realtimeRef = useRef({ socket: null, reconnectTimer: null, stopped: false, ignoreCloseOnce: false })
+  const refreshInFlightRef = useRef(null)
 
-  const persist = (payload) => {
+  const persist = useCallback((payload) => {
     const normalized = {
       user: payload.user || null,
       accessToken: payload.access || null,
@@ -45,7 +46,7 @@ export const AuthProvider = ({ children }) => {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized))
     }
     return normalized
-  }
+  }, [])
 
   const updateStoredUser = (nextUser) => {
     setAuthState((prev) => {
@@ -76,13 +77,29 @@ export const AuthProvider = ({ children }) => {
     if (!authState.refreshToken) {
       throw new Error('Missing refresh token')
     }
-    const data = await authApi.refreshToken(authState.refreshToken)
-    const updated = persist({
-      user: authState.user,
-      access: data.access,
-      refresh: data.refresh || authState.refreshToken,
-    })
-    return updated.accessToken
+
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current
+    }
+
+    const refreshPromise = (async () => {
+      const data = await authApi.refreshToken(authState.refreshToken)
+      const updated = persist({
+        user: authState.user,
+        access: data.access,
+        refresh: data.refresh || authState.refreshToken,
+      })
+      return updated.accessToken
+    })()
+
+    refreshInFlightRef.current = refreshPromise
+    try {
+      return await refreshPromise
+    } finally {
+      if (refreshInFlightRef.current === refreshPromise) {
+        refreshInFlightRef.current = null
+      }
+    }
   }, [authState.refreshToken, authState.user, persist])
 
   const logout = () => {
@@ -107,7 +124,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     if (typeof window === 'undefined') return undefined
-    const connection = realtimeRef.current || { socket: null, reconnectTimer: null, stopped: false }
+    const connection = realtimeRef.current || { socket: null, reconnectTimer: null, stopped: false, ignoreCloseOnce: false }
     connection.stopped = false
 
     const clearReconnect = () => {
@@ -120,6 +137,9 @@ export const AuthProvider = ({ children }) => {
     const closeSocket = () => {
       if (connection.socket) {
         try {
+          // We often close sockets intentionally (e.g., token change or reconnect).
+          // Ignore the next onClose event to avoid scheduling a redundant reconnect.
+          connection.ignoreCloseOnce = true
           connection.socket.close()
         } catch (error) {
           console.warn('Error closing realtime socket', error)
@@ -177,7 +197,18 @@ export const AuthProvider = ({ children }) => {
           onOpen: () => {
             retryDelay = 2000
           },
-          onClose: () => {
+          onClose: (event) => {
+            if (connection.ignoreCloseOnce) {
+              connection.ignoreCloseOnce = false
+              return
+            }
+
+            // If the backend explicitly rejects unauthenticated sockets, don't spin in a reconnect loop.
+            // The effect will re-run and reconnect once the access token changes (login/refresh).
+            const closeCode = event?.code
+            if (closeCode === 4401 || closeCode === 4403) {
+              return
+            }
             if (!connection.stopped) {
               scheduleReconnect()
             }

@@ -29,26 +29,42 @@ load_dotenv(BASE_DIR / '.env')
 SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-rq6)61$3=5%6#(o!ac^mq7xqm2%^--p+jj+=f4^840a#%98(=t')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 
 raw_allowed_hosts = os.environ.get('ALLOWED_HOSTS', '')
 ALLOWED_HOSTS = [host.strip() for host in raw_allowed_hosts.split(',') if host.strip()] if raw_allowed_hosts else []
 if not ALLOWED_HOSTS and DEBUG:
     ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-]
+FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL', 'http://localhost:5173')
 
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-]
+def _split_csv(value: str) -> list[str]:
+    if not value:
+        return []
+    return [item.strip() for item in value.split(',') if item.strip()]
+
+frontend_origin = ''
+try:
+    from urllib.parse import urlparse
+
+    parsed = urlparse(FRONTEND_BASE_URL)
+    if parsed.scheme and parsed.netloc:
+        frontend_origin = f"{parsed.scheme}://{parsed.netloc}"
+except Exception:
+    frontend_origin = ''
+
+raw_cors = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+raw_csrf = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
+
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOWED_ORIGINS = _split_csv(raw_cors) or ([frontend_origin] if frontend_origin else [])
+CSRF_TRUSTED_ORIGINS = _split_csv(raw_csrf) or ([frontend_origin] if frontend_origin else [])
 
 MONGODB_DB_NAME = os.environ.get('MONGODB_DB_NAME', 'splitwise')
 MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/splitwise')
-connect(db=MONGODB_DB_NAME, host=MONGODB_URI, alias='default')
+# Avoid hard-failing on import if Mongo isn't reachable yet (common during container startup
+# and when running management commands like collectstatic).
+connect(db=MONGODB_DB_NAME, host=MONGODB_URI, alias='default', connect=False)
 
 
 # Application definition
@@ -99,7 +115,6 @@ EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False').lower() == 'true'
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Splitwise Clone <no-reply@splitwise.local>')
 SIGNUP_OTP_EXPIRATION_MINUTES = int(os.environ.get('SIGNUP_OTP_EXPIRATION_MINUTES', 10))
 BYPASS_SIGNUP_OTP_CODE = os.environ.get('BYPASS_SIGNUP_OTP_CODE', '000000')
-FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL', 'http://localhost:5173')
 
 if (
     EMAIL_BACKEND.endswith('smtp.EmailBackend')
@@ -119,7 +134,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
+ 
 
 ROOT_URLCONF = 'backend.urls'
 ASGI_APPLICATION = 'backend.asgi.application'
@@ -159,10 +174,12 @@ CHANNEL_LAYERS = {
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+SQLITE_PATH = os.environ.get('SQLITE_PATH', str(BASE_DIR / 'db.sqlite3'))
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': SQLITE_PATH,
     }
 }
 
@@ -202,6 +219,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = os.environ.get('STATIC_ROOT', str(BASE_DIR / 'staticfiles'))
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

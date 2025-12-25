@@ -33,33 +33,47 @@ const sanitizeAmountInput = (value) => {
 }
 
 const splitEvenly = (list, amountValue) => {
-  const numericTotal = Number(amountValue)
+  const parseCurrencyToCents = (value) => {
+    if (value === undefined || value === null || value === '') {
+      return 0
+    }
+    const numeric = Number.parseFloat(String(value))
+    if (!Number.isFinite(numeric)) {
+      return 0
+    }
+    return Math.round(numeric * 100)
+  }
+
   if (!list.length) {
     return list
   }
-  if (!numericTotal || Number.isNaN(numericTotal)) {
+
+  const totalCents = parseCurrencyToCents(amountValue)
+  if (!totalCents) {
     return list.map((person) => ({ ...person, amount: '' }))
   }
 
-  const baseShare = Number((numericTotal / list.length).toFixed(2))
-  const adjusted = list.map((person, index) => {
-    const isLast = index === list.length - 1
-    const share = isLast
-      ? Number((numericTotal - baseShare * (list.length - 1)).toFixed(2))
-      : baseShare
-    return { ...person, amount: share.toFixed(2) }
-  })
+  const base = Math.floor(totalCents / list.length)
+  const remainder = totalCents % list.length
 
-  return adjusted
+  return list.map((person, index) => {
+    const shareCents = index < remainder ? base + 1 : base
+    return { ...person, amount: (shareCents / 100).toFixed(2) }
+  })
 }
 
-const normalizeCurrency = (value) => {
-  const parsed = Number.parseFloat(value)
-  if (!Number.isFinite(parsed)) {
+const parseCurrencyToCents = (value) => {
+  if (value === undefined || value === null || value === '') {
     return 0
   }
-  return Number(parsed.toFixed(2))
+  const numeric = Number.parseFloat(String(value))
+  if (!Number.isFinite(numeric)) {
+    return 0
+  }
+  return Math.round(numeric * 100)
 }
+
+const centsToNumber = (cents) => Number((cents / 100).toFixed(2))
 
 const AddExpensePage = () => {
   const [directory, setDirectory] = useState(directorySeed)
@@ -186,8 +200,8 @@ const AddExpensePage = () => {
       return
     }
 
-    const normalizedTotal = normalizeCurrency(total)
-    if (!normalizedTotal) {
+    const normalizedTotalCents = parseCurrencyToCents(total)
+    if (!normalizedTotalCents) {
       setSaveStatus({ message: '', error: 'Enter a total amount above $0.00.' })
       return
     }
@@ -200,18 +214,18 @@ const AddExpensePage = () => {
     const normalizedParticipants = participants
       .map((person) => ({
         user_id: person.id,
-        amount: normalizeCurrency(person.amount),
+        amount_cents: parseCurrencyToCents(person.amount),
       }))
-      .filter((entry) => entry.user_id === selfId || entry.amount > 0)
+      .filter((entry) => entry.user_id === selfId || entry.amount_cents > 0)
 
-    const hasFriendShare = normalizedParticipants.some((entry) => entry.user_id !== selfId && entry.amount > 0)
+    const hasFriendShare = normalizedParticipants.some((entry) => entry.user_id !== selfId && entry.amount_cents > 0)
     if (!hasFriendShare) {
       setSaveStatus({ message: '', error: 'Give at least one friend a share of the total.' })
       return
     }
 
-    const assignedTotal = normalizedParticipants.reduce((sum, entry) => sum + entry.amount, 0)
-    if (Math.abs(assignedTotal - normalizedTotal) > 0.01) {
+    const assignedTotalCents = normalizedParticipants.reduce((sum, entry) => sum + entry.amount_cents, 0)
+    if (Math.abs(assignedTotalCents - normalizedTotalCents) > 1) {
       setSaveStatus({ message: '', error: 'Assigned amounts must add up to the total.' })
       return
     }
@@ -223,12 +237,12 @@ const AddExpensePage = () => {
       await expensesApi.createExpense(
         { accessToken, refreshAccessToken },
         {
-          total_amount: normalizedTotal,
+          total_amount: centsToNumber(normalizedTotalCents),
           note: trimmedName,
           group_name: groupName.trim(),
           participants: normalizedParticipants.map((entry) => ({
             user_id: entry.user_id,
-            amount: entry.amount,
+            amount: centsToNumber(entry.amount_cents),
           })),
         },
       )
@@ -265,16 +279,26 @@ const AddExpensePage = () => {
     }
   }
 
-  const totalAssigned = participants.reduce((sum, person) => sum + (parseFloat(person.amount) || 0), 0)
-  const normalizedTotalInput = normalizeCurrency(total)
-  const hasFriendShare = participants.some((person) => !person.isSelf && normalizeCurrency(person.amount) > 0)
+  const totalAssignedCents = participants.reduce((sum, person) => sum + parseCurrencyToCents(person.amount), 0)
+  const normalizedTotalInputCents = parseCurrencyToCents(total)
+  const totalsMatch = !normalizedTotalInputCents || Math.abs(totalAssignedCents - normalizedTotalInputCents) <= 1
+  const hasFriendShare = participants.some((person) => !person.isSelf && parseCurrencyToCents(person.amount) > 0)
   const saveDisabled =
     isSaving ||
     !participants.length ||
-    !normalizedTotalInput ||
+    !normalizedTotalInputCents ||
     !hasFriendShare ||
     !accessToken ||
-    !expenseName.trim()
+    !expenseName.trim() ||
+    !totalsMatch
+
+  const participantSummary = participants
+    .map((person) => ({
+      id: person.id,
+      label: person.isSelf ? 'You' : person.name,
+      isSelf: Boolean(person.isSelf),
+    }))
+    .filter((person) => person.label)
 
   return (
     <section className="workspace-screen add-expense-screen">
@@ -285,25 +309,37 @@ const AddExpensePage = () => {
           <p>Search friends, scoop them into the bill, and align on who owes what.</p>
         </div>
         <div className="page-header__actions">
-          <span className="page-header__total">Assigned ${totalAssigned.toFixed(2)}</span>
+          <span className="pill pill--soft">Assigned ${(totalAssignedCents / 100).toFixed(2)}</span>
           <button className="primary-btn" type="button" disabled={saveDisabled} onClick={handleSaveExpense}>
             {isSaving ? 'Saving...' : 'Save expense'}
           </button>
         </div>
       </header>
 
-      {saveStatus.error ? (
-        <p className="hint-text" style={{ color: '#c02a2a', marginTop: '0.5rem' }}>{saveStatus.error}</p>
+      {!totalsMatch && normalizedTotalInputCents ? (
+        <div className="info-banner">
+          {totalAssignedCents < normalizedTotalInputCents
+            ? `Add ${(Math.abs(normalizedTotalInputCents - totalAssignedCents) / 100).toFixed(2)} more to match the total.`
+            : `Remove ${(Math.abs(normalizedTotalInputCents - totalAssignedCents) / 100).toFixed(2)} to match the total.`}
+        </div>
       ) : null}
-      {saveStatus.message ? (
-        <p className="hint-text" style={{ color: '#0f8f4b', marginTop: '0.5rem' }}>{saveStatus.message}</p>
-      ) : null}
+
+      {saveStatus.error ? <div className="error-banner">{saveStatus.error}</div> : null}
+      {saveStatus.message ? <div className="success-banner">{saveStatus.message}</div> : null}
 
       <div className="expense-shell">
         <article className="glass-card expense-sheet">
           <div className="expense-sheet__grid">
-            <section className="expense-block">
-              <h2>1. Add people</h2>
+            <section className="expense-block expense-step">
+              <header className="expense-step__header">
+                <div>
+                  <div className="expense-step__kicker">
+                    <span className="pill pill--warning">Step 1</span>
+                  </div>
+                  <h2 className="expense-step__title">Add people</h2>
+                  <p className="expense-step__subtitle">Add at least one friend so you can split the total.</p>
+                </div>
+              </header>
               <label className="input-label" htmlFor="participant-search">
                 Search friends
               </label>
@@ -323,7 +359,7 @@ const AddExpensePage = () => {
                         <strong>{person.name}</strong>
                         <span>@{person.username}</span>
                       </div>
-                      <button type="button" className="ghost-btn" onClick={() => handleAddPerson(person)}>
+                      <button type="button" className="pill pill--muted" onClick={() => handleAddPerson(person)}>
                         Add
                       </button>
                     </li>
@@ -331,10 +367,49 @@ const AddExpensePage = () => {
                 </ul>
               ) : null}
               {feedback ? <p className="hint-text" style={{ marginTop: '0.85rem' }}>{feedback}</p> : null}
+
+              <div className="expense-step__summary">
+                <div className="expense-step__summary-row">
+                  <span className="input-label">In this split</span>
+                  <span className="hint-text">{participantSummary.length || 0} people</span>
+                </div>
+                {participantSummary.length ? (
+                  <div className="participants-chips" aria-label="Current participants">
+                    {participantSummary.map((person) => (
+                      <div
+                        key={person.id}
+                        className={`participant-chip pill ${person.isSelf ? 'pill--success' : 'pill--soft'}`}
+                      >
+                        <span>{person.label}</span>
+                        {person.isSelf ? null : (
+                          <button
+                            type="button"
+                            className="participant-chip__remove"
+                            onClick={() => handleRemove(person.id)}
+                            aria-label={`Remove ${person.label}`}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="hint-text">You can start by searching a friend above.</p>
+                )}
+              </div>
             </section>
 
-            <section className="expense-block expense-block--split">
-              <h2>2. Split the bill</h2>
+            <section className="expense-block expense-block--split expense-step">
+              <header className="expense-step__header">
+                <div>
+                  <div className="expense-step__kicker">
+                    <span className="pill pill--warning">Step 2</span>
+                  </div>
+                  <h2 className="expense-step__title">Split the bill</h2>
+                  <p className="expense-step__subtitle">Enter the details, then fine-tune each share.</p>
+                </div>
+              </header>
               <label className="input-label" htmlFor="expense-name">
                 Expense name
               </label>
@@ -404,7 +479,7 @@ const AddExpensePage = () => {
                 )}
               </div>
               <div className="split-actions">
-                <button type="button" className="ghost-btn" onClick={restoreEqualSplit} disabled={!participants.length}>
+                <button type="button" className="btn-secondary" onClick={restoreEqualSplit} disabled={!participants.length}>
                   Equal split
                 </button>
                 <label className="split-toggle">

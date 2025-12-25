@@ -48,8 +48,32 @@ export const requestSignupOtp = (data) =>
     body: JSON.stringify(data),
   })
 
-export const refreshToken = (refresh) =>
-  request('/api/users/token/refresh/', {
+let refreshInFlight = null
+let refreshInFlightToken = null
+
+export const refreshToken = (refresh) => {
+  if (!refresh) {
+    return Promise.reject(new Error('Missing refresh token'))
+  }
+
+  if (refreshInFlight && refreshInFlightToken === refresh) {
+    return refreshInFlight
+  }
+
+  const promise = request('/api/users/token/refresh/', {
     method: 'POST',
     body: JSON.stringify({ refresh }),
   })
+
+  refreshInFlight = promise
+  refreshInFlightToken = refresh
+
+  promise.finally(() => {
+    if (refreshInFlight === promise) {
+      refreshInFlight = null
+      refreshInFlightToken = null
+    }
+  })
+
+  return promise
+}

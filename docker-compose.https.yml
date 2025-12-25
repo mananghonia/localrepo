@@ -1,0 +1,25 @@
+services:
+  # Don't expose nginx directly; Caddy will own :80 and :443.
+  web:
+    ports: []
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # Used by the Caddyfile via {$DOMAIN}
+      DOMAIN: ${DOMAIN}
+      # Used by Caddy for ACME registration when provided
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,48 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
+    environment:
+      # Ensure prod-safe defaults (override in backend/.env)
+      DEBUG: "False"
+      REDIS_URL: redis://redis:6379/0
+      SQLITE_PATH: /data/db.sqlite3
+      MONGODB_URI: mongodb://mongo:27017/splitwise
+      MONGODB_DB_NAME: splitwise
+    volumes:
+      - sqlite_data:/data
+      - staticfiles:/app/staticfiles
+    depends_on:
+      - redis
+      - mongo
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/nginx/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    volumes:
+      - staticfiles:/static:ro
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+  sqlite_data:
+  staticfiles:
