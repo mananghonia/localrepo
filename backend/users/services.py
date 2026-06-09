@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import logging
 import re
 import smtplib
+import socket
 
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
@@ -72,6 +73,8 @@ def issue_signup_otp(email: str, name: str = '') -> None:
         '',
         'If you did not request this code, you can safely ignore this message.',
     ]
+    old_timeout = socket.getdefaulttimeout()
+    socket.setdefaulttimeout(10)
     try:
         send_mail(
             subject='Your Splitwise verification code',
@@ -80,9 +83,11 @@ def issue_signup_otp(email: str, name: str = '') -> None:
             recipient_list=[sanitized_email],
             fail_silently=False,
         )
-    except smtplib.SMTPException as exc:
-        logger.exception("Failed to send OTP email to %s", sanitized_email)
+    except Exception as exc:
+        logger.warning("Failed to send OTP email to %s: %s", sanitized_email, exc)
         raise OTPDeliveryError("Unable to send verification email right now. Please try again later.") from exc
+    finally:
+        socket.setdefaulttimeout(old_timeout)
 
 
 def verify_signup_otp(email: str, code: str) -> bool:
