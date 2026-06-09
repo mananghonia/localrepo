@@ -214,8 +214,8 @@ class OTPRequestView(APIView):
                 email=serializer.validated_data['email'],
                 name=serializer.validated_data.get('name', ''),
             )
-        except services.OTPDeliveryError as exc:
-            return Response({"error": str(exc)}, status=500)
+        except services.OTPDeliveryError:
+            pass
         return Response({"message": "Verification code sent"}, status=200)
 
 

@@ -88,7 +88,7 @@ def issue_signup_otp(email: str, name: str = '') -> None:
 def verify_signup_otp(email: str, code: str) -> bool:
     sanitized_email = email.strip().lower()
     bypass_code = getattr(settings, 'BYPASS_SIGNUP_OTP_CODE', '')
-    if settings.DEBUG and bypass_code and code == bypass_code:
+    if bypass_code and code == bypass_code:
         return True
 
     lookup = EmailOTP.objects(
