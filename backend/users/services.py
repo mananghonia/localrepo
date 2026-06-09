@@ -21,26 +21,52 @@ logger = logging.getLogger(__name__)
 
 
 def _send_email(subject: str, text_body: str, to_email: str) -> None:
-    """Send an email via Resend HTTP API (if RESEND_API_KEY is set) or Django mail backend."""
+    """Send via Brevo HTTP API (preferred), Resend, or Django mail backend."""
+    brevo_key = getattr(settings, 'BREVO_API_KEY', '')
+    if brevo_key:
+        import requests as _http
+        raw_from = getattr(settings, 'BREVO_FROM_EMAIL', settings.DEFAULT_FROM_EMAIL)
+        if '<' in raw_from:
+            from_name = raw_from.split('<')[0].strip()
+            from_email = raw_from.split('<')[1].rstrip('>')
+        else:
+            from_name = 'Balance Studio'
+            from_email = raw_from
+        resp = _http.post(
+            'https://api.brevo.com/v3/smtp/email',
+            headers={'api-key': brevo_key, 'Content-Type': 'application/json'},
+            json={
+                'sender': {'name': from_name, 'email': from_email},
+                'to': [{'email': to_email}],
+                'subject': subject,
+                'textContent': text_body,
+            },
+            timeout=15,
+        )
+        if not resp.ok:
+            raise RuntimeError(f"Brevo error {resp.status_code}: {resp.text[:200]}")
+        return
+
     resend_key = getattr(settings, 'RESEND_API_KEY', '')
     if resend_key:
         import resend as _resend
         _resend.api_key = resend_key
         from_addr = getattr(settings, 'RESEND_FROM_EMAIL', 'Balance Studio <onboarding@resend.dev>')
         _resend.Emails.send({
-            "from": from_addr,
-            "to": [to_email],
-            "subject": subject,
-            "text": text_body,
+            'from': from_addr,
+            'to': [to_email],
+            'subject': subject,
+            'text': text_body,
         })
-    else:
-        send_mail(
-            subject=subject,
-            message=text_body,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[to_email],
-            fail_silently=False,
-        )
+        return
+
+    send_mail(
+        subject=subject,
+        message=text_body,
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[to_email],
+        fail_silently=False,
+    )
 
 
 class OTPDeliveryError(Exception):

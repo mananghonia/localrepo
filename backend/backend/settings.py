@@ -117,6 +117,8 @@ SIGNUP_OTP_EXPIRATION_MINUTES = int(os.environ.get('SIGNUP_OTP_EXPIRATION_MINUTE
 BYPASS_SIGNUP_OTP_CODE = os.environ.get('BYPASS_SIGNUP_OTP_CODE', '000000')
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 RESEND_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL', 'Balance Studio <onboarding@resend.dev>')
+BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
+BREVO_FROM_EMAIL = os.environ.get('BREVO_FROM_EMAIL', '')
 
 if (
     EMAIL_BACKEND.endswith('smtp.EmailBackend')
