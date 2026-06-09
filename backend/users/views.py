@@ -162,7 +162,7 @@ class GoogleAuthView(APIView):
                 google_requests.Request(),
                 settings.GOOGLE_CLIENT_ID,
             )
-        except ValueError:
+        except Exception:
             pass
 
         # Fall back to access token — call Google userinfo endpoint
