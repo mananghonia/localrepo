@@ -1,10 +1,36 @@
 import { useState } from 'react'
-import { GoogleLogin } from '@react-oauth/google'
+import { useGoogleLogin } from '@react-oauth/google'
 
 const GoogleAuthButton = ({ onCredential, onError }) => {
   const hasClient = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID)
   const [pending, setPending] = useState(false)
   const [status, setStatus] = useState('')
+
+  const login = useGoogleLogin({
+    flow: 'implicit',
+    onSuccess: (tokenResponse) => {
+      if (!tokenResponse.access_token) {
+        setStatus('Google did not return a token')
+        onError?.('Google did not return a token')
+        return
+      }
+      setPending(true)
+      setStatus('Completing Google sign-in…')
+      Promise.resolve(onCredential?.(tokenResponse.access_token))
+        .then(() => setStatus(''))
+        .catch((error) => {
+          const message = error?.message || 'Unable to finish Google sign-in'
+          setStatus(message)
+          onError?.(message)
+        })
+        .finally(() => setPending(false))
+    },
+    onError: () => {
+      const message = 'Google sign-in was cancelled'
+      setStatus(message)
+      onError?.(message)
+    },
+  })
 
   if (!hasClient) {
     return (
@@ -14,51 +40,20 @@ const GoogleAuthButton = ({ onCredential, onError }) => {
     )
   }
 
-  const handleSuccess = (response) => {
-    if (!response.credential) {
-      setStatus('Google did not return a credential')
-      onError?.('Google did not return a credential')
-      return
-    }
-
-    setPending(true)
-    setStatus('Completing Google sign-in…')
-
-    Promise.resolve(onCredential?.(response.credential))
-      .then(() => setStatus(''))
-      .catch((error) => {
-        const message = error?.message || 'Unable to finish Google sign-in'
-        setStatus(message)
-        onError?.(message)
-      })
-      .finally(() => setPending(false))
-  }
-
-  const handleError = () => {
-    const message = 'Google sign-in was cancelled'
-    setStatus(message)
-    onError?.(message)
-  }
-
   return (
     <div className="google-zone">
-      <div className={`google-button-shell${pending ? ' is-pending' : ''}`}>
-        <div className="google-button-hitbox">
-          <GoogleLogin
-            width={340}
-            text="signin_with"
-            theme="filled_black"
-            shape="pill"
-            onSuccess={handleSuccess}
-            onError={handleError}
-          />
-        </div>
-        <div className="google-faux" aria-hidden="true">
-          <span className="google-faux__icon">G</span>
-          <span className="google-faux__text">Sign in with Google</span>
-        </div>
+      <button
+        type="button"
+        className={`google-faux${pending ? ' is-pending' : ''}`}
+        onClick={() => login()}
+        disabled={pending}
+      >
+        <span className="google-faux__icon">G</span>
+        <span className="google-faux__text">
+          {pending ? 'Signing in…' : 'Sign in with Google'}
+        </span>
         <span className="google-badge">Beta</span>
-      </div>
+      </button>
       {status ? (
         <p className="google-status" aria-live="polite">
           {status}

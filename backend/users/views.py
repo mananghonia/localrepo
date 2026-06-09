@@ -151,16 +151,31 @@ class GoogleAuthView(APIView):
     def post(self, request):
         token = request.data.get("token")
         if not token:
-            return Response({"error": "Google ID token is required"}, status=400)
+            return Response({"error": "Google token is required"}, status=400)
 
+        id_info = None
+
+        # Try ID token verification first
         try:
             id_info = id_token.verify_oauth2_token(
                 token,
                 google_requests.Request(),
                 settings.GOOGLE_CLIENT_ID,
             )
-        except ValueError as exc:
-            return Response({"error": "Invalid Google token", "details": str(exc)}, status=400)
+        except ValueError:
+            pass
+
+        # Fall back to access token — call Google userinfo endpoint
+        if id_info is None:
+            import requests as http_requests
+            resp = http_requests.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=5,
+            )
+            if resp.status_code != 200:
+                return Response({"error": "Invalid Google token"}, status=400)
+            id_info = resp.json()
 
         email = id_info.get("email")
         if not email:
