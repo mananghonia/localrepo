@@ -262,6 +262,15 @@ class FriendInviteCreateView(APIView):
             return
         pending = FriendInvite.objects(invitee_user=invitee, status=FriendInvite.STATUS_PENDING).count()
         realtime_pubsub.notify_invite_refresh(invitee, pending, event=event)
+        if event == 'new':
+            services.record_notification(
+                invitee,
+                invite.inviter,
+                Notification.KIND_INVITE,
+                f"{invite.inviter.name} sent you a friend request",
+                invite.note or f"{invite.inviter.name} wants to connect with you.",
+                {"invite_id": str(invite.id)},
+            )
 
 
 class FriendInviteDecisionView(APIView):
@@ -304,6 +313,19 @@ class FriendInviteDecisionView(APIView):
         if invitee:
             pending = FriendInvite.objects(invitee_user=invitee, status=FriendInvite.STATUS_PENDING).count()
             realtime_pubsub.notify_invite_refresh(invitee, pending, event='updated')
+        if invite.status == FriendInvite.STATUS_ACCEPTED and invitee:
+            services.record_notification(
+                invite.inviter,
+                invitee,
+                Notification.KIND_INVITE,
+                f"{invitee.name} accepted your friend request",
+                f"You and {invitee.name} are now connected.",
+                {"invite_id": str(invite.id)},
+            )
+            realtime_pubsub.notify_friends_refresh(invite.inviter)
+        elif invite.status == FriendInvite.STATUS_REJECTED:
+            # Inviter learns their invite was declined so their pending list refreshes
+            realtime_pubsub.notify_invite_refresh(invite.inviter, event='updated')
 
 
 class FriendBreakdownView(APIView):

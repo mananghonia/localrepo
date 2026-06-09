@@ -159,10 +159,11 @@ class PasswordResetToken(Document):
 class Notification(Document):
     KIND_EXPENSE = 'expense_logged'
     KIND_SETTLEMENT = 'settlement_recorded'
+    KIND_INVITE = 'friend_invite'
 
     user = ReferenceField('User', required=True, reverse_delete_rule=CASCADE)
     actor = ReferenceField('User', required=True, reverse_delete_rule=CASCADE)
-    kind = StringField(required=True, choices=[KIND_EXPENSE, KIND_SETTLEMENT])
+    kind = StringField(required=True, choices=[KIND_EXPENSE, KIND_SETTLEMENT, KIND_INVITE])
     title = StringField(required=True)
     body = StringField()
     data = DictField(default=dict)

@@ -8,4 +8,14 @@ export const createExpense = (auth, data) =>
     body: JSON.stringify(data),
   })
 
-export const fetchActivity = (auth) => authorizedRequest('/api/activity/', auth)
+export const updateExpense = (auth, expenseId, data) =>
+  authorizedRequest(`/api/expenses/${expenseId}/`, auth, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  })
+
+export const deleteExpense = (auth, expenseId) =>
+  authorizedRequest(`/api/expenses/${expenseId}/`, auth, { method: 'DELETE' })
+
+export const fetchActivity = (auth, { limit = 40, offset = 0 } = {}) =>
+  authorizedRequest(`/api/activity/?limit=${limit}&offset=${offset}`, auth)

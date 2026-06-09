@@ -5,13 +5,6 @@ import * as friendsApi from '../services/friendsApi'
 import * as expensesApi from '../services/expensesApi'
 import { emitNotificationsUpdated } from '../utils/notificationEvents'
 
-const directorySeed = [
-  { id: 'alex', name: 'Alex Garcia', username: 'alexg' },
-  { id: 'mira', name: 'Mira Kapoor', username: 'mkstudio' },
-  { id: 'sanjay', name: 'Sanjay Rao', username: 'ledgerrao' },
-  { id: 'leah', name: 'Leah Brown', username: 'leahb' },
-  { id: 'dave', name: 'Dave Kim', username: 'dkim' },
-]
 
 const sanitizeAmountInput = (value) => {
   if (value === undefined || value === null) {
@@ -76,7 +69,7 @@ const parseCurrencyToCents = (value) => {
 const centsToNumber = (cents) => Number((cents / 100).toFixed(2))
 
 const AddExpensePage = () => {
-  const [directory, setDirectory] = useState(directorySeed)
+  const [directory, setDirectory] = useState([])
   const [query, setQuery] = useState('')
   const [participants, setParticipants] = useState([])
   const [total, setTotal] = useState('')
@@ -248,7 +241,7 @@ const AddExpensePage = () => {
       )
 
       setSaveStatus({ message: 'Expense saved and everyone was notified.', error: '' })
-  emitNotificationsUpdated()
+      emitNotificationsUpdated()
       setExpenseName('')
       setGroupName('')
       setTotal('')
@@ -365,6 +358,12 @@ const AddExpensePage = () => {
                     </li>
                   ))}
                 </ul>
+              ) : query.trim() && !filteredDirectory.length ? (
+                <p className="hint-text" style={{ marginTop: '0.5rem' }}>
+                  {directory.length === 0
+                    ? 'No friends yet — go to Friends to send an invite first.'
+                    : 'No friends match that search.'}
+                </p>
               ) : null}
               {feedback ? <p className="hint-text" style={{ marginTop: '0.85rem' }}>{feedback}</p> : null}
 

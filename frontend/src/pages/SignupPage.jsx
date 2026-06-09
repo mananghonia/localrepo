@@ -131,6 +131,11 @@ const SignupPage = () => {
             Building locally? Enter <strong>{devOtpCode}</strong> if email delivery is not configured.
           </p>
         ) : null}
+        {!form.otp_code ? (
+          <p className="hint-text" style={{ color: 'var(--color-warning, #b45309)' }}>
+            Enter your verification code above to enable sign up.
+          </p>
+        ) : null}
 
         <button className="primary-btn" type="submit" disabled={pending || !form.otp_code}>
           {pending ? 'Creating account…' : 'Sign up'}

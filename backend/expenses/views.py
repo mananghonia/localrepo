@@ -1,5 +1,6 @@
 import logging
 import smtplib
+from datetime import timezone
 
 from django.core.mail import send_mail
 from rest_framework import status
@@ -11,6 +12,13 @@ from users.models import Friendship, User, Notification
 from users import services
 
 from .models import Activity, Expense, ExpenseParticipant
+
+
+def _isoformat_utc(value):
+    if not value:
+        return None
+    dt = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
 
 
 logger = logging.getLogger(__name__)
@@ -31,7 +39,7 @@ def serialize_expense(expense):
 		"note": expense.note or '',
 		"group_name": expense.group_name or '',
 		"total_amount": round(expense.total_amount, 2),
-		"created_at": expense.created_at.isoformat() if expense.created_at else None,
+		"created_at": _isoformat_utc(expense.created_at),
 		"payer": _serialize_user_min(expense.payer),
 		"participants": [
 			{
@@ -45,18 +53,24 @@ def serialize_expense(expense):
 
 
 def serialize_activity(entry):
+	expense_data = None
+	if entry.expense:
+		try:
+			expense_data = {
+				"id": str(entry.expense.id),
+				"note": entry.expense.note or '',
+				"total_amount": round(entry.expense.total_amount, 2),
+			}
+		except Exception:
+			expense_data = None
 	return {
 		"id": str(entry.id),
 		"summary": entry.summary,
 		"detail": entry.detail,
 		"status": entry.status,
 		"amount": round(entry.amount or 0, 2),
-		"created_at": entry.created_at.isoformat() if entry.created_at else None,
-		"expense": {
-			"id": str(entry.expense.id),
-			"note": entry.expense.note or '',
-			"total_amount": round(entry.expense.total_amount, 2),
-		},
+		"created_at": _isoformat_utc(entry.created_at),
+		"expense": expense_data,
 	}
 
 
@@ -248,7 +262,180 @@ class ExpenseListCreateView(APIView):
 		return Response(serialize_expense(expense), status=status.HTTP_201_CREATED)
 
 
+class ExpenseDeleteView(APIView):
+	def put(self, request, expense_id):
+		expense = Expense.objects(id=expense_id).first()
+		if not expense:
+			return Response({"error": "Expense not found."}, status=404)
+		if str(expense.payer.id) != str(request.user.id):
+			return Response({"error": "Only the payer can edit this expense."}, status=403)
+
+		payload = request.data or {}
+		new_note = (payload.get('note') if payload.get('note') is not None else expense.note or '').strip()
+
+		raw_group = payload.get('group_name')
+		if raw_group is not None:
+			new_group_label = services.normalize_group_label(raw_group)
+		else:
+			new_group_label = expense.group_name or services.GROUP_FALLBACK_LABEL
+
+		old_group_label = expense.group_name or services.GROUP_FALLBACK_LABEL
+		payer = expense.payer
+
+		old_friend_parts = [p for p in expense.participants if str(p.user.id) != str(payer.id)]
+
+		# Build new_shares: use explicit participant amounts if provided, else proportional fallback
+		participants_payload = payload.get('participants')
+		if participants_payload is not None:
+			new_shares = {}
+			for entry in participants_payload:
+				uid = str(entry.get('user_id', ''))
+				try:
+					amount = round(float(entry.get('amount', 0)), 2)
+				except (TypeError, ValueError):
+					return Response({"error": "Participant amounts must be valid numbers."}, status=400)
+				if amount < 0:
+					return Response({"error": "Amounts cannot be negative."}, status=400)
+				new_shares[uid] = amount
+			new_total = round(sum(new_shares.values()), 2)
+			if new_total <= 0:
+				return Response({"error": "Total must be greater than zero."}, status=400)
+		else:
+			raw_total = payload.get('total_amount')
+			if raw_total is not None:
+				try:
+					new_total = round(float(raw_total), 2)
+				except (TypeError, ValueError):
+					return Response({"error": "Total amount must be a valid number."}, status=400)
+				if new_total <= 0:
+					return Response({"error": "Total amount must be greater than zero."}, status=400)
+			else:
+				new_total = expense.total_amount
+			old_total_shares = sum(p.amount for p in old_friend_parts)
+			new_shares = {}
+			if old_total_shares > 0:
+				for part in old_friend_parts:
+					ratio = part.amount / old_total_shares
+					new_shares[str(part.user.id)] = round(new_total * ratio, 2)
+			elif old_friend_parts:
+				per_person = round(new_total / len(old_friend_parts), 2)
+				for part in old_friend_parts:
+					new_shares[str(part.user.id)] = per_person
+
+		# Reverse old balance changes
+		for part in old_friend_parts:
+			delta = round(part.amount, 2)
+			if delta <= 0:
+				continue
+			services.apply_balance_change(payer, part.user, -delta, old_group_label)
+			services.apply_balance_change(part.user, payer, delta, old_group_label)
+
+		# Apply new balance changes
+		for part in old_friend_parts:
+			new_amount = new_shares.get(str(part.user.id), 0)
+			if new_amount <= 0:
+				continue
+			services.apply_balance_change(payer, part.user, new_amount, new_group_label)
+			services.apply_balance_change(part.user, payer, -new_amount, new_group_label)
+
+		# Rebuild participants list with updated amounts
+		new_participants = []
+		for part in expense.participants:
+			if part.is_payer:
+				new_participants.append(ExpenseParticipant(user=part.user, amount=0, is_payer=True))
+			else:
+				new_amount = new_shares.get(str(part.user.id), part.amount)
+				new_participants.append(ExpenseParticipant(user=part.user, amount=new_amount, is_payer=False))
+
+		expense.note = new_note
+		expense.group_name = new_group_label
+		expense.total_amount = new_total
+		expense.participants = new_participants
+		expense.save()
+
+		# Update activity records in-place
+		expense_title = f'"{new_note}"' if new_note else 'an expense'
+		new_owed_total = round(sum(new_shares.values()), 2)
+		friend_names = _list_names(old_friend_parts) or 'friends'
+
+		payer_activity = Activity.objects(expense=expense, user=payer).first()
+		if payer_activity:
+			payer_activity.summary = f"You updated {expense_title}"
+			payer_activity.detail = f"{friend_names} owe you ${new_owed_total:.2f} total in {new_group_label}."
+			payer_activity.amount = new_owed_total
+			payer_activity.save()
+
+		for part in old_friend_parts:
+			new_amount = new_shares.get(str(part.user.id), 0)
+			part_activity = Activity.objects(expense=expense, user=part.user).first()
+			if part_activity:
+				part_activity.summary = f"{payer.name} updated {expense_title}"
+				part_activity.detail = f"You owe ${new_amount:.2f} to {payer.name} for {new_group_label}."
+				part_activity.amount = round(-new_amount, 2)
+				part_activity.save()
+
+		impact_ids = {str(payer.id)}
+		for part in old_friend_parts:
+			impact_ids.add(str(part.user.id))
+		for uid in impact_ids:
+			user_obj = User.objects(id=uid).first()
+			if user_obj:
+				realtime_pubsub.notify_friends_refresh(user_obj, event='expense_updated')
+				realtime_pubsub.notify_activity_refresh(user_obj, event='expense_updated')
+
+		return Response(serialize_expense(expense), status=200)
+
+	def delete(self, request, expense_id):
+		expense = Expense.objects(id=expense_id).first()
+		if not expense:
+			return Response({"error": "Expense not found."}, status=404)
+		if str(expense.payer.id) != str(request.user.id):
+			return Response({"error": "Only the person who logged this expense can delete it."}, status=403)
+
+		payer = expense.payer
+		group_label = expense.group_name or services.GROUP_FALLBACK_LABEL
+
+		for part in expense.participants:
+			if str(part.user.id) == str(payer.id):
+				continue
+			delta = round(part.amount, 2)
+			if delta <= 0:
+				continue
+			services.apply_balance_change(payer, part.user, -delta, group_label)
+			services.apply_balance_change(part.user, payer, delta, group_label)
+
+		Activity.objects(expense=expense).delete()
+		expense.delete()
+
+		impact_ids = {str(payer.id)}
+		for part in expense.participants:
+			impact_ids.add(str(part.user.id))
+		for uid in impact_ids:
+			user_obj = User.objects(id=uid).first()
+			if user_obj:
+				realtime_pubsub.notify_friends_refresh(user_obj, event='expense_deleted')
+				realtime_pubsub.notify_activity_refresh(user_obj, event='expense_deleted')
+
+		return Response({"message": "Expense deleted."}, status=200)
+
+
 class ActivityFeedView(APIView):
 	def get(self, request):
-		entries = Activity.objects(user=request.user).order_by('-created_at').limit(40)
-		return Response({"results": [serialize_activity(entry) for entry in entries]})
+		try:
+			limit = int(request.query_params.get('limit', 40))
+		except (TypeError, ValueError):
+			limit = 40
+		limit = max(1, min(limit, 200))
+		offset = 0
+		try:
+			offset = int(request.query_params.get('offset', 0))
+		except (TypeError, ValueError):
+			offset = 0
+		entries = Activity.objects(user=request.user).order_by('-created_at').skip(offset).limit(limit)
+		total = Activity.objects(user=request.user).count()
+		return Response({
+			"results": [serialize_activity(entry) for entry in entries],
+			"total": total,
+			"offset": offset,
+			"limit": limit,
+		})

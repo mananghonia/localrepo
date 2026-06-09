@@ -3,6 +3,7 @@ from datetime import datetime
 from mongoengine import (
 	BooleanField,
 	CASCADE,
+	NULLIFY,
 	DateTimeField,
 	Document,
 	EmbeddedDocument,
@@ -37,7 +38,7 @@ class Expense(Document):
 class Activity(Document):
 	user = ReferenceField('User', required=True, reverse_delete_rule=CASCADE)
 	actor = ReferenceField('User', required=True)
-	expense = ReferenceField('Expense', required=True, reverse_delete_rule=CASCADE)
+	expense = ReferenceField('Expense', required=False, null=True, reverse_delete_rule=NULLIFY)
 	summary = StringField(required=True)
 	detail = StringField()
 	amount = FloatField()

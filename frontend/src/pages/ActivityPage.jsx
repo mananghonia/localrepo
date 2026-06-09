@@ -30,17 +30,20 @@ const formatRelativeTime = (isoString) => {
 }
 
 const ActivityCard = ({ entry, onViewExpense }) => {
+  const isSettlement = entry.status === 'settled'
   const amount = Number(entry.amount || 0)
   const amountAbs = Math.abs(amount)
   const amountLabel = `${amount >= 0 ? '+' : '-'}${formatCurrency(amountAbs)}`
-  const intentLabel = amount >= 0 ? 'They owe you' : 'You owe'
-  const amountClass = amount >= 0 ? 'activity-amount--positive' : 'activity-amount--negative'
-  const note = entry.expense?.note || 'Untitled expense'
+  const intentLabel = isSettlement ? 'Settled' : (amount >= 0 ? 'They owe you' : 'You owe')
+  const amountClass = isSettlement
+    ? 'activity-amount--settled'
+    : (amount >= 0 ? 'activity-amount--positive' : 'activity-amount--negative')
+  const note = entry.expense?.note || (isSettlement ? null : 'Untitled expense')
 
   return (
     <article className="activity-card">
       <div className="activity-card__stack">
-        <span className="activity-card__note">{note}</span>
+        {note ? <span className="activity-card__note">{note}</span> : null}
         <h2>{entry.summary}</h2>
         <p>{entry.detail}</p>
       </div>
@@ -50,24 +53,109 @@ const ActivityCard = ({ entry, onViewExpense }) => {
           <small>{intentLabel}</small>
         </div>
         <time>{formatRelativeTime(entry.created_at)}</time>
-        <button
-          type="button"
-          className="ghost-btn"
-          onClick={() => entry.expense?.id && onViewExpense(entry.expense.id)}
-          disabled={!entry.expense?.id}
-        >
-          View expense
-        </button>
+        {entry.expense?.id ? (
+          <button
+            type="button"
+            className="ghost-btn"
+            onClick={() => onViewExpense(entry.expense.id)}
+          >
+            View expense
+          </button>
+        ) : null}
       </div>
     </article>
   )
 }
 
-const ExpenseModal = ({ expense, onClose, currentUserId }) => {
+const noScroll = (e) => e.target.blur()
+
+const ExpenseModal = ({ expense, onClose, currentUserId, onDelete, onSave }) => {
+  const [deleting, setDeleting] = useState(false)
+  const [editMode, setEditMode] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [editNote, setEditNote] = useState('')
+  const [editGroup, setEditGroup] = useState('')
+  const [editParticipants, setEditParticipants] = useState([])
+  const [editError, setEditError] = useState('')
+
   const payerName = expense?.payer?.name || 'Someone'
+  const isOwner = expense && String(expense.payer?.id) === String(currentUserId)
   const totalOwed = expense
     ? expense.participants.filter((part) => !part.is_payer).reduce((sum, part) => sum + (Number(part.amount) || 0), 0)
     : 0
+
+  const handleStartEdit = () => {
+    setEditNote(expense.note || '')
+    setEditGroup(expense.group_name || '')
+    setEditParticipants(
+      (expense.participants || [])
+        .filter((p) => !p.is_payer)
+        .map((p) => ({
+          userId: String(p.user?.id || ''),
+          name: p.user?.name || 'Friend',
+          amount: String(p.amount ?? '0'),
+        }))
+    )
+    setEditError('')
+    setEditMode(true)
+  }
+
+  const handleCancelEdit = () => {
+    setEditMode(false)
+    setEditError('')
+  }
+
+  const handleParticipantAmount = (index, value) => {
+    setEditParticipants((prev) => {
+      const next = [...prev]
+      next[index] = { ...next[index], amount: value }
+      return next
+    })
+  }
+
+  const computedTotal = editParticipants.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0)
+
+  const handleSave = async (e) => {
+    e.preventDefault()
+    const participants = editParticipants.map((p) => ({
+      user_id: p.userId,
+      amount: parseFloat(p.amount) || 0,
+    }))
+    if (participants.some((p) => p.amount < 0)) {
+      setEditError('Amounts cannot be negative.')
+      return
+    }
+    if (computedTotal <= 0) {
+      setEditError('Total must be greater than $0.00.')
+      return
+    }
+    setSaving(true)
+    setEditError('')
+    try {
+      await onSave(expense.id, {
+        note: editNote.trim(),
+        group_name: editGroup.trim(),
+        participants,
+      })
+      setEditMode(false)
+    } catch (err) {
+      setEditError(err.message || 'Could not save changes.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!window.confirm('Delete this expense? This will reverse all balance changes.')) return
+    setDeleting(true)
+    try {
+      await onDelete(expense.id)
+      onClose()
+    } catch (err) {
+      alert(err.message || 'Could not delete this expense.')
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="activity-modal" role="dialog" aria-modal="true">
@@ -76,40 +164,116 @@ const ExpenseModal = ({ expense, onClose, currentUserId }) => {
           ×
         </button>
         {expense ? (
-          <>
-            <h3>{expense.note || 'Untitled expense'}</h3>
-            <p className="activity-modal__subtitle">
-              Created by {payerName} • {formatCurrency(expense.total_amount)}
-            </p>
-            <ul className="activity-modal__list">
-              {expense.participants.map((participant) => {
-                const isViewer = String(participant.user?.id) === String(currentUserId)
-                const toneClass = participant.is_payer ? 'activity-modal__amount--positive' : 'activity-modal__amount--negative'
-                const displayAmount = participant.is_payer
-                  ? totalOwed > 0
-                    ? `+${formatCurrency(totalOwed)}`
-                    : formatCurrency(0)
-                  : `-${formatCurrency(participant.amount)}`
-                const helperText = participant.is_payer
-                  ? totalOwed > 0
-                    ? `Should receive ${formatCurrency(totalOwed)} total`
-                    : 'This one is fully settled'
-                  : `Owes ${formatCurrency(participant.amount)} to ${payerName}`
-                return (
-                  <li key={`${expense.id}-${participant.user?.id || participant.user?.name}`}>
-                    <div className="activity-modal__person">
-                      <strong>
-                        {participant.user?.name || 'Friend'}
-                        {isViewer ? ' (You)' : ''}
-                      </strong>
-                      <span className="hint-text">{helperText}</span>
-                    </div>
-                    <span className={`activity-modal__amount ${toneClass}`}>{displayAmount}</span>
-                  </li>
-                )
-              })}
-            </ul>
-          </>
+          editMode ? (
+            <form className="activity-modal__edit-form" onSubmit={handleSave}>
+              <h3>Edit expense</h3>
+              <div className="activity-modal__field">
+                <label className="input-label" htmlFor="edit-note">Description</label>
+                <input
+                  id="edit-note"
+                  type="text"
+                  className="text-input"
+                  value={editNote}
+                  onChange={(e) => setEditNote(e.target.value)}
+                  placeholder="What was this for?"
+                  autoFocus
+                />
+              </div>
+              <div className="activity-modal__field">
+                <label className="input-label" htmlFor="edit-group">Group / label</label>
+                <input
+                  id="edit-group"
+                  type="text"
+                  className="text-input"
+                  value={editGroup}
+                  onChange={(e) => setEditGroup(e.target.value)}
+                  placeholder="e.g. Apartment, Trip, Food"
+                />
+              </div>
+              <div className="activity-modal__field">
+                <label className="input-label">Participant amounts ($)</label>
+                <ul className="activity-modal__edit-participants">
+                  {editParticipants.map((p, i) => (
+                    <li key={p.userId} className="activity-modal__edit-participant">
+                      <span className="activity-modal__edit-participant-name">{p.name}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="text-input activity-modal__edit-participant-input"
+                        value={p.amount}
+                        onChange={(e) => handleParticipantAmount(i, e.target.value)}
+                        onWheel={noScroll}
+                        aria-label={`Amount for ${p.name}`}
+                      />
+                    </li>
+                  ))}
+                </ul>
+                <p className="hint-text activity-modal__edit-total">
+                  Total: {formatCurrency(computedTotal)}
+                </p>
+              </div>
+              {editError ? <p className="activity-modal__error">{editError}</p> : null}
+              <div className="activity-modal__footer activity-modal__footer--edit">
+                <button type="button" className="ghost-btn" onClick={handleCancelEdit} disabled={saving}>
+                  Cancel
+                </button>
+                <button type="submit" className="primary-btn" disabled={saving}>
+                  {saving ? 'Saving…' : 'Save changes'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <h3>{expense.note || 'Untitled expense'}</h3>
+              <p className="activity-modal__subtitle">
+                Created by {payerName} • {formatCurrency(expense.total_amount)}
+              </p>
+              <ul className="activity-modal__list">
+                {expense.participants.map((participant) => {
+                  const isViewer = String(participant.user?.id) === String(currentUserId)
+                  const toneClass = participant.is_payer ? 'activity-modal__amount--positive' : 'activity-modal__amount--negative'
+                  const displayAmount = participant.is_payer
+                    ? totalOwed > 0
+                      ? `+${formatCurrency(totalOwed)}`
+                      : formatCurrency(0)
+                    : `-${formatCurrency(participant.amount)}`
+                  const helperText = participant.is_payer
+                    ? totalOwed > 0
+                      ? `Should receive ${formatCurrency(totalOwed)} total`
+                      : 'This one is fully settled'
+                    : `Owes ${formatCurrency(participant.amount)} to ${payerName}`
+                  return (
+                    <li key={`${expense.id}-${participant.user?.id || participant.user?.name}`}>
+                      <div className="activity-modal__person">
+                        <strong>
+                          {participant.user?.name || 'Friend'}
+                          {isViewer ? ' (You)' : ''}
+                        </strong>
+                        <span className="hint-text">{helperText}</span>
+                      </div>
+                      <span className={`activity-modal__amount ${toneClass}`}>{displayAmount}</span>
+                    </li>
+                  )
+                })}
+              </ul>
+              {isOwner ? (
+                <div className="activity-modal__footer">
+                  <button type="button" className="activity-modal__edit-btn" onClick={handleStartEdit}>
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="activity-modal__delete"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                  >
+                    {deleting ? 'Deleting…' : 'Delete expense'}
+                  </button>
+                </div>
+              ) : null}
+            </>
+          )
         ) : (
           <p className="activity-state">No expense details found.</p>
         )}
@@ -118,11 +282,15 @@ const ExpenseModal = ({ expense, onClose, currentUserId }) => {
   )
 }
 
+const PAGE_SIZE = 20
+
 const ActivityPage = () => {
   const { accessToken, refreshAccessToken, user } = useAuth()
   const [entries, setEntries] = useState([])
+  const [total, setTotal] = useState(0)
   const [expensesById, setExpensesById] = useState({})
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [selectedExpenseId, setSelectedExpenseId] = useState(null)
@@ -131,6 +299,7 @@ const ActivityPage = () => {
   const loadActivityFeed = useCallback(async () => {
     if (!accessToken) {
       setEntries([])
+      setTotal(0)
       setExpensesById({})
       setLoading(false)
       return
@@ -139,10 +308,11 @@ const ActivityPage = () => {
     setError('')
     try {
       const [activityPayload, expensesPayload] = await Promise.all([
-        expensesApi.fetchActivity({ accessToken, refreshAccessToken }),
+        expensesApi.fetchActivity({ accessToken, refreshAccessToken }, { limit: PAGE_SIZE, offset: 0 }),
         expensesApi.fetchExpenses({ accessToken, refreshAccessToken }),
       ])
       setEntries(activityPayload?.results || [])
+      setTotal(activityPayload?.total ?? activityPayload?.count ?? 0)
       const map = {}
       ;(expensesPayload?.results || []).forEach((expense) => {
         map[expense.id] = expense
@@ -154,6 +324,24 @@ const ActivityPage = () => {
       setLoading(false)
     }
   }, [accessToken, refreshAccessToken])
+
+  const loadMore = useCallback(async () => {
+    if (!accessToken || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const activityPayload = await expensesApi.fetchActivity(
+        { accessToken, refreshAccessToken },
+        { limit: PAGE_SIZE, offset: entries.length },
+      )
+      const newEntries = activityPayload?.results || []
+      setEntries((prev) => [...prev, ...newEntries])
+      setTotal(activityPayload?.total ?? activityPayload?.count ?? 0)
+    } catch (err) {
+      setNotice(err?.message || 'Could not load more activity.')
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [accessToken, refreshAccessToken, entries.length, loadingMore])
 
   useEffect(() => {
     loadActivityFeed()
@@ -263,8 +451,34 @@ const ActivityPage = () => {
 
       <div className="activity-feed">{renderFeed()}</div>
 
+      {!loading && entries.length > 0 && entries.length < total ? (
+        <div className="activity-load-more">
+          <button
+            type="button"
+            className="export-btn"
+            onClick={loadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? 'Loading…' : `Load more (${total - entries.length} remaining)`}
+          </button>
+        </div>
+      ) : null}
+
       {selectedExpenseId ? (
-        <ExpenseModal expense={selectedExpense} onClose={() => setSelectedExpenseId(null)} currentUserId={user?.id || user?._id} />
+        <ExpenseModal
+          expense={selectedExpense}
+          onClose={() => setSelectedExpenseId(null)}
+          currentUserId={user?.id || user?._id}
+          onDelete={async (expenseId) => {
+            await expensesApi.deleteExpense({ accessToken, refreshAccessToken }, expenseId)
+            await loadActivityFeed()
+          }}
+          onSave={async (expenseId, data) => {
+            const updated = await expensesApi.updateExpense({ accessToken, refreshAccessToken }, expenseId, data)
+            setExpensesById((prev) => ({ ...prev, [expenseId]: updated }))
+            await loadActivityFeed()
+          }}
+        />
       ) : null}
     </section>
   )

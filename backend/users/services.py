@@ -528,6 +528,30 @@ def apply_group_settlement(user: User, friend: User, group_slug: str, amount: fl
             "amount": requested,
         },
     )
+    # Activity feed entries for both parties (no expense reference for settlements)
+    try:
+        Activity(
+            user=user,
+            actor=user,
+            summary=f'You settled "{label}"',
+            detail=f"Cleared ${requested:.2f} with {friend.name}.",
+            amount=requested,
+            status='settled',
+        ).save()
+        Activity(
+            user=friend,
+            actor=user,
+            summary=f'{user.name} settled "{label}"',
+            detail=f"{user.name} cleared ${requested:.2f} with you.",
+            amount=requested,
+            status='settled',
+        ).save()
+    except Exception as exc:
+        logger.warning("Failed to create settlement activity records: %s", exc)
+    realtime_pubsub.notify_activity_refresh(user, event='settlement')
+    realtime_pubsub.notify_activity_refresh(friend, event='settlement')
+    realtime_pubsub.notify_friends_refresh(user, event='settlement')
+    realtime_pubsub.notify_friends_refresh(friend, event='settlement')
     return record, email_sent
 
 

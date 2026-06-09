@@ -77,10 +77,16 @@ const LoginPage = () => {
       </form>
       <div className="auth-google-stack">
         <GoogleAuthButton onCredential={handleGoogle} onError={setError} />
-        <p className="auth-meta-note auth-create-note">If you don&apos;t have account create one.</p>
-        <Link className="auth-create-link" to="/signup">
+      </div>
+      <div className="auth-create-section">
+        <p className="auth-meta-note auth-create-note">If you don&apos;t have an account create one.</p>
+        <button
+          type="button"
+          className="auth-create-link"
+          onClick={() => navigate('/signup')}
+        >
           Create an account
-        </Link>
+        </button>
       </div>
     </AuthShell>
   )

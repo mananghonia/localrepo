@@ -32,7 +32,7 @@ const ForgotPasswordPage = () => {
   return (
     <AuthShell
       title="Forgot your password?"
-      subtitle="We will email you a secure link from splitwise676@gmail.com so you can set a new password."
+      subtitle="Enter the exact email you used when creating your account. We will send a secure reset link to that address."
     >
       <form className="form-grid" onSubmit={handleSubmit}>
         {error ? <div className="error-banner">{error}</div> : null}
@@ -51,8 +51,8 @@ const ForgotPasswordPage = () => {
         </button>
       </form>
       <p className="auth-meta-note">
-        The email arrives within a minute. Remember to click the link on the same device to open the new
-        password page and finish by saving matching passwords.
+        If an account with that email exists, the link arrives within a minute. Check your spam folder too.
+        Click the link on the same device to set a new password.
       </p>
       <Link className="btn-secondary auth-link-btn" to="/login">
         Back to login

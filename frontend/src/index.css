@@ -433,6 +433,15 @@ button.pill--muted:hover {
   margin: 0.85rem auto 0;
 }
 
+.auth-create-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 10;
+  margin-top: 0.5rem;
+}
+
 .auth-create-link {
   display: flex;
   align-items: center;
@@ -448,8 +457,13 @@ button.pill--muted:hover {
   box-shadow: 0 18px 35px rgba(2, 3, 8, 0.75);
   color: rgba(255, 255, 255, 0.92);
   font-weight: 600;
+  font-size: 1rem;
+  font-family: inherit;
   letter-spacing: 0.01em;
   text-decoration: none;
+  cursor: pointer;
+  position: relative;
+  z-index: 10;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -581,7 +595,7 @@ button.pill--muted:hover {
 
 .dashboard-grid {
   min-height: 100vh;
-  padding: clamp(2rem, 4vw, 4rem);
+  padding: 5.5rem clamp(2rem, 4vw, 4rem) clamp(2rem, 4vw, 4rem);
   display: flex;
   flex-direction: column;
   gap: 1.75rem;
@@ -942,7 +956,7 @@ button.pill--muted:hover {
 
 .workspace-screen {
   min-height: 100vh;
-  padding: clamp(2rem, 5vw, 4.5rem);
+  padding: 5.5rem clamp(2rem, 5vw, 4.5rem) clamp(2rem, 5vw, 4.5rem);
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -1321,27 +1335,30 @@ button.pill--muted:hover {
 .notification-tray {
   position: absolute;
   top: calc(100% + 12px);
-  left: 0;
-  width: min(360px, calc(100vw - 2rem));
-  background: linear-gradient(160deg, rgba(9, 11, 23, 0.92), rgba(18, 21, 38, 0.95));
-  border-radius: 24px;
+  right: 0;
+  width: min(380px, calc(100vw - 2rem));
+  background: linear-gradient(160deg, rgba(9, 11, 23, 0.95), rgba(18, 21, 38, 0.98));
+  border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 32px 80px rgba(3, 5, 14, 0.65);
-  padding: 1.25rem;
+  box-shadow: 0 24px 60px rgba(3, 5, 14, 0.7), 0 0 0 1px rgba(255,255,255,0.04);
+  padding: 1.1rem 1.25rem 1.25rem;
   z-index: 1400;
-  backdrop-filter: blur(18px);
-  transform-origin: 0 0;
+  backdrop-filter: blur(24px);
+  transform-origin: 100% 0;
   opacity: 0;
-  transform: translate3d(-12px, 10px, 0) scale(0.94);
-  animation: trayLeftPop 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  transform: translate3d(8px, 10px, 0) scale(0.95);
+  animation: trayRightPop 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
   will-change: transform, opacity;
 }
  
  .notification-tray__header {
    display: flex;
    justify-content: space-between;
-   align-items: flex-start;
+   align-items: center;
    gap: 1rem;
+   padding-bottom: 0.85rem;
+   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+   margin-bottom: 0.2rem;
 }
  
  .notification-tray__header-actions {
@@ -1389,12 +1406,22 @@ button.pill--muted:hover {
  
  .notification-tray__invite {
    display: flex;
-   justify-content: space-between;
-   align-items: center;
-   padding: 0.6rem 0.75rem;
+   flex-direction: column;
+   gap: 0.6rem;
+   padding: 0.75rem 0.9rem;
    border-radius: 14px;
-   border: 1px solid rgba(255, 255, 255, 0.12);
-   background: rgba(255, 255, 255, 0.05);
+   border: 1px solid rgba(138, 123, 255, 0.35);
+   background: rgba(138, 123, 255, 0.08);
+}
+
+ .notification-tray__invite span {
+   font-size: 0.9rem;
+   color: rgba(255, 255, 255, 0.9);
+   line-height: 1.4;
+}
+
+ .notification-tray__invite button {
+   align-self: flex-start;
 }
  
  .notification-tray__state {
@@ -1495,14 +1522,14 @@ button.pill--muted:hover {
    background: rgba(138, 123, 255, 0.4);
  }
  
-@keyframes trayLeftPop {
+@keyframes trayRightPop {
   0% {
     opacity: 0;
-    transform: translate3d(-20px, 12px, 0) scale(0.9);
+    transform: translate3d(12px, 10px, 0) scale(0.92);
   }
-  60% {
+  65% {
     opacity: 1;
-    transform: translate3d(4px, -2px, 0) scale(1.02);
+    transform: translate3d(-2px, -1px, 0) scale(1.01);
   }
   100% {
     opacity: 1;
@@ -1513,10 +1540,12 @@ button.pill--muted:hover {
  @media (max-width: 720px) {
    .notification-tray {
     position: fixed;
-    top: 70px;
+    top: 68px;
     right: 0.75rem;
     left: 0.75rem;
     width: auto;
+    max-height: calc(100dvh - 80px);
+    overflow-y: auto;
     bottom: auto;
    }
  }
@@ -1884,19 +1913,22 @@ button.pill--muted:hover {
 }
 
 .app-nav {
-  width: 100%;
-  position: sticky;
-  top: 1.5rem;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
   z-index: 1300;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.85rem 1.5rem;
-  border-radius: 22px;
-  border: 1px solid var(--border);
-  background: rgba(6, 8, 18, 0.92);
-  box-shadow: 0 25px 60px rgba(4, 4, 12, 0.45);
+  padding: 0.75rem clamp(1.5rem, 5vw, 4.5rem);
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(5, 6, 15, 0.94);
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px);
 }
 
 .app-nav__brand {
@@ -2005,7 +2037,7 @@ button.pill--muted:hover {
 
 .profile-screen {
   min-height: 100vh;
-  padding: clamp(2rem, 4vw, 4rem);
+  padding: 5.5rem clamp(2rem, 4vw, 4rem) clamp(2rem, 4vw, 4rem);
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
@@ -2543,6 +2575,10 @@ button.pill--muted:hover {
   color: #ff8080;
 }
 
+.activity-amount--settled {
+  color: #a0c4ff;
+}
+
 .activity-card__meta .ghost-btn {
   width: 100%;
 }
@@ -2561,75 +2597,295 @@ button.pill--muted:hover {
   color: #ffadad;
 }
 
+/* ── Expense detail / edit modal ──────────────────────────────── */
 .activity-modal {
   position: fixed;
   inset: 0;
-  background: rgba(2, 4, 10, 0.75);
+  background: rgba(2, 4, 12, 0.82);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 30;
-  backdrop-filter: blur(6px);
-  padding: 1.5rem;
+  backdrop-filter: blur(10px);
+  padding: 1.25rem;
 }
 
 .activity-modal__panel {
-  width: min(520px, 100%);
-  border-radius: 28px;
-  padding: 1.75rem;
-  background: rgba(6, 9, 18, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  width: min(480px, 100%);
+  border-radius: 24px;
+  padding: 0;
+  background: linear-gradient(160deg, rgba(18, 22, 38, 0.98) 0%, rgba(10, 14, 26, 0.98) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
   position: relative;
-  box-shadow: 0 35px 80px rgba(3, 4, 10, 0.75);
+  box-shadow:
+    0 40px 90px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  overflow: hidden;
 }
 
+.activity-modal__panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(120, 80, 255, 0.8), rgba(80, 200, 160, 0.6));
+  border-radius: 24px 24px 0 0;
+  pointer-events: none;
+}
+
+/* close button */
 .activity-modal__close {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
-  border: none;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 1.5rem;
+  top: 1.1rem;
+  right: 1.1rem;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 1.1rem;
+  line-height: 1;
+  border-radius: 50%;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.activity-modal__close:hover {
+  background: rgba(255, 255, 255, 0.13);
+  color: #fff;
+}
+
+/* header zone (title + subtitle) */
+.activity-modal__panel > h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #f0f0f0;
+  letter-spacing: -0.01em;
+  margin: 0;
+  padding: 1.6rem 3.5rem 0 1.75rem;
 }
 
 .activity-modal__subtitle {
-  margin-top: 0.5rem;
-  margin-bottom: 1.25rem;
-  color: rgba(255, 255, 255, 0.7);
+  margin: 0.4rem 0 0;
+  padding: 0 1.75rem 1.25rem;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
+/* participant list */
 .activity-modal__list {
   list-style: none;
-  padding: 0;
+  padding: 1rem 1.25rem;
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.4rem;
 }
 
 .activity-modal__list li {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding-bottom: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.15s ease;
 }
 
-.activity-modal__list li:last-child {
-  border-bottom: none;
-  padding-bottom: 0;
+.activity-modal__list li:hover {
+  background: rgba(255, 255, 255, 0.058);
 }
 
 .activity-modal__person {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.2rem;
+}
+
+.activity-modal__person strong {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #e8e8e8;
+}
+
+.activity-modal__person .hint-text {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .activity-modal__amount {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+/* footer action bar */
+.activity-modal__footer {
+  padding: 1rem 1.5rem 1.4rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.activity-modal__edit-btn {
+  height: 2.15rem;
+  padding: 0 1.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #d0d0d0;
+  border-radius: 999px;
+  font-size: 0.8rem;
   font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.activity-modal__edit-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.activity-modal__delete {
+  height: 2.15rem;
+  padding: 0 1.25rem;
+  border: 1px solid rgba(255, 80, 80, 0.3);
+  background: rgba(255, 55, 55, 0.08);
+  color: #ff9090;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.activity-modal__delete:hover:not(:disabled) {
+  background: rgba(255, 55, 55, 0.18);
+  border-color: rgba(255, 80, 80, 0.55);
+}
+
+.activity-modal__delete:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.activity-load-more {
+  display: flex;
+  justify-content: center;
+  padding: 1.5rem 0 2rem;
+}
+
+/* expense edit form inside modal */
+.activity-modal__edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.6rem 1.75rem 1.4rem;
+}
+
+.activity-modal__edit-form h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #f0f0f0;
+  margin: 0 0 0.25rem;
+}
+
+.activity-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.activity-modal__footer--edit {
+  justify-content: flex-end;
+  gap: 0.6rem;
+  padding: 0;
+  border-top: none;
+  margin-top: 0.25rem;
+}
+
+.activity-modal__edit-btn {
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e0e0e0;
+  border-radius: 999px;
+  padding: 0.45rem 1.1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.activity-modal__edit-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.activity-modal__error {
+  color: #ff9090;
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.activity-modal__edit-participants {
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.activity-modal__edit-participant {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.activity-modal__edit-participant-name {
+  flex: 1;
+  font-size: 0.9rem;
+  color: #d0d0d0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-modal__edit-participant-input {
+  width: 7rem;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.activity-modal__edit-total {
+  margin-top: 0.5rem;
+  text-align: right;
+  font-weight: 600;
+  color: #b0b0b0;
+}
+
+/* manual settle-up trigger */
+.friend-detail__manual-trigger {
+  padding: 0.75rem 0 0.25rem;
+  display: flex;
+  justify-content: center;
+}
+
+/* fallback text inside the modal panel */
+.activity-modal__panel > .activity-state {
+  margin: 1.5rem;
 }
 
 .activity-modal__amount--positive {
@@ -2684,7 +2940,7 @@ button.pill--muted:hover {
   .dashboard-grid,
   .workspace-screen,
   .profile-screen {
-    padding: 1.25rem;
+    padding: 5.5rem 1.25rem 1.25rem;
   }
 
   .page-header {
@@ -2697,8 +2953,8 @@ button.pill--muted:hover {
   }
 
   .app-nav {
-    top: 0.75rem;
-    padding: 0.75rem 1rem;
+    top: 0;
+    padding: 0.65rem 1rem;
     flex-wrap: wrap;
   }
 

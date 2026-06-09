@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as friendsApi from '../services/friendsApi'
 import { emitNotificationsUpdated } from '../utils/notificationEvents'
+import { emitActivityUpdated } from '../utils/realtimeStreams'
 
 const formatCurrency = (value) => `$${Number(value || 0).toFixed(2)}`
 
@@ -9,10 +10,11 @@ const FriendBreakdownModal = ({ friend, auth, onClose, onSettled }) => {
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
   const [breakdown, setBreakdown] = useState(null)
-  const [activeGroup, setActiveGroup] = useState(null)
-  const [settleAmount, setSettleAmount] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSettlingAll, setIsSettlingAll] = useState(false)
+  const [showManualForm, setShowManualForm] = useState(false)
+  const [manualGroupSlug, setManualGroupSlug] = useState('')
+  const [manualAmount, setManualAmount] = useState('')
 
   const friendId = friend?.id
 
@@ -33,7 +35,9 @@ const FriendBreakdownModal = ({ friend, auth, onClose, onSettled }) => {
   useEffect(() => {
     if (!friendId) return
     fetchBreakdown()
-    setActiveGroup(null)
+    setShowManualForm(false)
+    setManualGroupSlug('')
+    setManualAmount('')
     setStatus('')
     setError('')
   }, [friendId, fetchBreakdown])
@@ -42,46 +46,66 @@ const FriendBreakdownModal = ({ friend, auth, onClose, onSettled }) => {
   const hasOutstandingBalances = groups.length > 0
 
   const handleClose = () => {
-    setActiveGroup(null)
-    setSettleAmount('')
+    setShowManualForm(false)
+    setManualGroupSlug('')
+    setManualAmount('')
     setBreakdown(null)
     onClose?.()
   }
 
-  const handleStartSettlement = (group) => {
-    setActiveGroup(group)
-    setSettleAmount(Number(group.amount || 0).toFixed(2))
+  const handleOpenManualForm = () => {
     setStatus('')
+    setError('')
+    setShowManualForm(true)
+    if (groups.length === 1) {
+      setManualGroupSlug(groups[0].slug)
+      setManualAmount(Number(groups[0].amount || 0).toFixed(2))
+    } else {
+      setManualGroupSlug('')
+      setManualAmount('')
+    }
+  }
+
+  const handleManualGroupChange = (slug) => {
+    setManualGroupSlug(slug)
+    const group = groups.find((g) => g.slug === slug)
+    setManualAmount(group ? Number(group.amount || 0).toFixed(2) : '')
     setError('')
   }
 
-  const handleSubmitSettlement = async (event) => {
+  const handleSubmitManual = async (event) => {
     event.preventDefault()
-    if (!friendId || !activeGroup) return
-    const numericAmount = Number.parseFloat(settleAmount)
+    const group = groups.find((g) => g.slug === manualGroupSlug)
+    if (!group) {
+      setError('Select a group to settle.')
+      return
+    }
+    const numericAmount = Number.parseFloat(manualAmount)
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       setError('Enter an amount greater than $0.00 to settle.')
       return
     }
-    if (numericAmount - activeGroup.amount > 0.01) {
-      setError('You cannot settle more than the pending amount for this group.')
+    if (numericAmount - group.amount > 0.01) {
+      setError(`You cannot settle more than ${formatCurrency(group.amount)} for this group.`)
       return
     }
     setIsSubmitting(true)
     setError('')
     try {
       const result = await friendsApi.settleFriendGroup(auth, friendId, {
-        group_slug: activeGroup.slug,
+        group_slug: manualGroupSlug,
         amount: numericAmount,
       })
       const emailDelivered = result?.settlement?.email_delivered
-      const baseMessage = `Marked ${formatCurrency(numericAmount)} as settled in ${activeGroup.label}.`
+      const baseMessage = `Marked ${formatCurrency(numericAmount)} as settled in ${group.label}.`
       setStatus(emailDelivered ? baseMessage : `${baseMessage} Email notification could not be sent.`)
-      setActiveGroup(null)
-      setSettleAmount('')
+      setShowManualForm(false)
+      setManualGroupSlug('')
+      setManualAmount('')
       await fetchBreakdown()
       onSettled?.()
       emitNotificationsUpdated()
+      emitActivityUpdated()
     } catch (err) {
       setError(err.message || 'Unable to settle this balance right now.')
     } finally {
@@ -110,11 +134,13 @@ const FriendBreakdownModal = ({ friend, auth, onClose, onSettled }) => {
       const baseMessage = `Cleared ${formatCurrency(total)} across ${count} ${count === 1 ? 'group' : 'groups'}.`
       const emailDelivered = Boolean(summary.email_delivered)
       setStatus(emailDelivered ? baseMessage : `${baseMessage} Email notification could not be sent.`)
-      setActiveGroup(null)
-      setSettleAmount('')
+      setShowManualForm(false)
+      setManualGroupSlug('')
+      setManualAmount('')
       await fetchBreakdown()
       onSettled?.()
       emitNotificationsUpdated()
+      emitActivityUpdated()
     } catch (err) {
       setError(err.message || 'Unable to settle every group right now.')
     } finally {
@@ -177,37 +203,67 @@ const FriendBreakdownModal = ({ friend, auth, onClose, onSettled }) => {
                   {group.direction === 'owes_you' ? 'They owe you' : 'You owe them'} {formatCurrency(group.amount)}
                 </p>
               </div>
-              <div className="friend-detail__group-actions">
-                <span className={group.direction === 'owes_you' ? 'friends-ledger__amount--positive' : 'friends-ledger__amount--negative'}>
-                  {group.direction === 'owes_you' ? '+' : '-'}{formatCurrency(group.amount).replace('+', '')}
-                </span>
-                <button type="button" className="pill pill--soft" onClick={() => handleStartSettlement(group)}>
-                  Settle
-                </button>
-              </div>
+              <span className={group.direction === 'owes_you' ? 'friends-ledger__amount--positive' : 'friends-ledger__amount--negative'}>
+                {group.direction === 'owes_you' ? '+' : '-'}{formatCurrency(group.amount)}
+              </span>
             </li>
           ))}
         </ul>
 
-        {activeGroup ? (
-          <form className="friend-detail__form" onSubmit={handleSubmitSettlement}>
+        {hasOutstandingBalances && !showManualForm ? (
+          <div className="friend-detail__manual-trigger">
+            <button type="button" className="ghost-btn" onClick={handleOpenManualForm}>
+              Manual settle-up
+            </button>
+          </div>
+        ) : null}
+
+        {showManualForm ? (
+          <form className="friend-detail__form" onSubmit={handleSubmitManual}>
+            <p className="hint-text">Manual settle-up</p>
+            {groups.length > 1 ? (
+              <div>
+                <label className="input-label" htmlFor="manual-group">Group</label>
+                <select
+                  id="manual-group"
+                  className="text-input"
+                  value={manualGroupSlug}
+                  onChange={(e) => handleManualGroupChange(e.target.value)}
+                >
+                  <option value="">Select a group</option>
+                  {groups.map((g) => (
+                    <option key={g.slug} value={g.slug}>
+                      {g.label} ({formatCurrency(g.amount)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             <div>
-              <p className="hint-text">Settling {activeGroup.label}</p>
-              <label className="input-label" htmlFor="settle-amount">
-                Amount to settle
-              </label>
+              <label className="input-label" htmlFor="manual-amount">Amount ($)</label>
               <input
-                id="settle-amount"
+                id="manual-amount"
                 type="number"
-                min="0"
+                min="0.01"
                 step="0.01"
                 className="text-input"
-                value={settleAmount}
-                onChange={(event) => setSettleAmount(event.target.value)}
+                value={manualAmount}
+                onChange={(e) => setManualAmount(e.target.value)}
+                placeholder="0.00"
+                autoFocus={groups.length === 1}
               />
             </div>
             <div className="friend-detail__form-actions">
-              <button type="button" className="ghost-btn" onClick={() => setActiveGroup(null)}>
+              <button
+                type="button"
+                className="ghost-btn"
+                onClick={() => {
+                  setShowManualForm(false)
+                  setManualGroupSlug('')
+                  setManualAmount('')
+                  setError('')
+                }}
+              >
                 Cancel
               </button>
               <button type="submit" className="primary-btn" disabled={isSubmitting}>

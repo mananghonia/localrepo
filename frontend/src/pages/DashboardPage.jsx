@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import AppNav from '../components/AppNav.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import * as friendsApi from '../services/friendsApi'
 import * as expensesApi from '../services/expensesApi'
+import { FRIENDS_DATA_UPDATED_EVENT, ACTIVITY_UPDATED_EVENT } from '../utils/realtimeStreams'
 
 const currencyFormatters = new Map()
 
@@ -290,7 +291,7 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
+  const loadDashboard = useCallback(async () => {
     if (!isAuthenticated || !accessToken) {
       setStats(buildStats(SAMPLE_FRIENDS_PAYLOAD, SAMPLE_INVITES_PAYLOAD, SAMPLE_EXPENSES_PAYLOAD))
       setFriends(decorateFriends(SAMPLE_FRIENDS_PAYLOAD.friends))
@@ -301,45 +302,47 @@ const DashboardPage = () => {
       return
     }
 
-    let ignore = false
     const auth = { accessToken, refreshAccessToken }
-
     setLoading(true)
     setError('')
 
-    Promise.allSettled([
+    const results = await Promise.allSettled([
       friendsApi.fetchFriends(auth),
       friendsApi.fetchInvites(auth),
       expensesApi.fetchExpenses(auth),
-      expensesApi.fetchActivity(auth),
+      expensesApi.fetchActivity(auth, { limit: 4 }),
     ])
-      .then((results) => {
-        if (ignore) return
-        const [friendsResult, invitesResult, expensesResult, activityResult] = results
 
-        const friendsPayload = friendsResult.status === 'fulfilled' ? friendsResult.value : null
-        const invitesPayload = invitesResult.status === 'fulfilled' ? invitesResult.value : null
-        const expensesPayload = expensesResult.status === 'fulfilled' ? expensesResult.value : null
-        const activityPayload = activityResult.status === 'fulfilled' ? activityResult.value : null
+    const [friendsResult, invitesResult, expensesResult, activityResult] = results
+    const friendsPayload = friendsResult.status === 'fulfilled' ? friendsResult.value : null
+    const invitesPayload = invitesResult.status === 'fulfilled' ? invitesResult.value : null
+    const expensesPayload = expensesResult.status === 'fulfilled' ? expensesResult.value : null
+    const activityPayload = activityResult.status === 'fulfilled' ? activityResult.value : null
 
-        setStats(buildStats(friendsPayload, invitesPayload, expensesPayload))
-        setFriends(decorateFriends(friendsPayload?.friends || []))
-        setGroups(buildGroupSummaries(expensesPayload?.results || [], viewerId))
-        setActivity(mapActivityEntries(activityPayload))
+    setStats(buildStats(friendsPayload, invitesPayload, expensesPayload))
+    setFriends(decorateFriends(friendsPayload?.friends || []))
+    setGroups(buildGroupSummaries(expensesPayload?.results || [], viewerId))
+    setActivity(mapActivityEntries(activityPayload))
 
-        const failure = results.find((entry) => entry.status === 'rejected')
-        setError(failure?.reason?.message || (failure?.reason ? String(failure.reason) : ''))
-      })
-      .finally(() => {
-        if (!ignore) {
-          setLoading(false)
-        }
-      })
-
-    return () => {
-      ignore = true
-    }
+    const failure = results.find((entry) => entry.status === 'rejected')
+    setError(failure?.reason?.message || (failure?.reason ? String(failure.reason) : ''))
+    setLoading(false)
   }, [isAuthenticated, accessToken, refreshAccessToken, viewerId])
+
+  useEffect(() => {
+    loadDashboard()
+  }, [loadDashboard])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const handler = () => { if (accessToken) loadDashboard() }
+    window.addEventListener(FRIENDS_DATA_UPDATED_EVENT, handler)
+    window.addEventListener(ACTIVITY_UPDATED_EVENT, handler)
+    return () => {
+      window.removeEventListener(FRIENDS_DATA_UPDATED_EVENT, handler)
+      window.removeEventListener(ACTIVITY_UPDATED_EVENT, handler)
+    }
+  }, [accessToken, loadDashboard])
 
   const heroName = user?.name || 'there'
 
@@ -454,7 +457,7 @@ const DashboardPage = () => {
                     <strong className={group.amount >= 0 ? 'amount-positive' : 'amount-negative'}>
                       {formatCurrency(group.amount, { signed: true })}
                     </strong>
-                    <span className="text-link">View details →</span>
+                    <Link to="/activity" className="text-link">View details →</Link>
                   </div>
                 </li>
               ))}

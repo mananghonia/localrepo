@@ -1,14 +1,25 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') || 'http://localhost:8000'
+import { API_BASE_URL, baseHeaders } from './apiClient.js'
 
-const defaultHeaders = {
-  'Content-Type': 'application/json',
+const resolveErrorMessage = (payload) => {
+  if (!payload) return null
+  if (typeof payload === 'string') return payload
+  if (typeof payload === 'object') {
+    if (payload.error) { const n = resolveErrorMessage(payload.error); if (n) return n }
+    if (payload.detail) { const n = resolveErrorMessage(payload.detail); if (n) return n }
+    if (Array.isArray(payload)) {
+      for (const item of payload) { const n = resolveErrorMessage(item); if (n) return n }
+      return null
+    }
+    for (const value of Object.values(payload)) { const n = resolveErrorMessage(value); if (n) return n }
+  }
+  return null
 }
 
 const request = async (path, options = {}) => {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {
-      ...defaultHeaders,
+      ...baseHeaders,
       ...(options.headers || {}),
     },
   })
@@ -17,7 +28,7 @@ const request = async (path, options = {}) => {
   const payload = isJson ? await response.json() : null
 
   if (!response.ok) {
-    const message = payload?.error || payload?.detail || 'Something went wrong'
+    const message = resolveErrorMessage(payload) || 'Something went wrong'
     throw new Error(message)
   }
 
