@@ -167,15 +167,18 @@ class GoogleAuthView(APIView):
 
         # Fall back to access token — call Google userinfo endpoint
         if id_info is None:
-            import requests as http_requests
-            resp = http_requests.get(
-                "https://www.googleapis.com/oauth2/v3/userinfo",
-                headers={"Authorization": f"Bearer {token}"},
-                timeout=5,
-            )
-            if resp.status_code != 200:
-                return Response({"error": "Invalid Google token"}, status=400)
-            id_info = resp.json()
+            try:
+                import requests as http_requests
+                resp = http_requests.get(
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=10,
+                )
+                if resp.status_code != 200:
+                    return Response({"error": "Invalid Google token"}, status=400)
+                id_info = resp.json()
+            except Exception as exc:
+                return Response({"error": "Google token verification failed", "details": str(exc)}, status=400)
 
         email = id_info.get("email")
         if not email:
