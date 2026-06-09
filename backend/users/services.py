@@ -1,8 +1,6 @@
 from datetime import datetime, timedelta
 import logging
 import re
-import smtplib
-import socket
 
 from django.conf import settings
 from django.contrib.auth.hashers import check_password, make_password
@@ -19,8 +17,30 @@ from .models import EmailOTP, PasswordResetToken, User, FriendInvite, Friendship
 OTP_ALLOWED_CHARS = '0123456789'
 TOKEN_ALLOWED_CHARS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 GROUP_FALLBACK_LABEL = 'Personal split'
-SETTLEMENT_FROM_EMAIL = 'splitwise676@gmail.com'
 logger = logging.getLogger(__name__)
+
+
+def _send_email(subject: str, text_body: str, to_email: str) -> None:
+    """Send an email via Resend HTTP API (if RESEND_API_KEY is set) or Django mail backend."""
+    resend_key = getattr(settings, 'RESEND_API_KEY', '')
+    if resend_key:
+        import resend as _resend
+        _resend.api_key = resend_key
+        from_addr = getattr(settings, 'RESEND_FROM_EMAIL', 'Balance Studio <onboarding@resend.dev>')
+        _resend.Emails.send({
+            "from": from_addr,
+            "to": [to_email],
+            "subject": subject,
+            "text": text_body,
+        })
+    else:
+        send_mail(
+            subject=subject,
+            message=text_body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[to_email],
+            fail_silently=False,
+        )
 
 
 class OTPDeliveryError(Exception):
@@ -73,21 +93,15 @@ def issue_signup_otp(email: str, name: str = '') -> None:
         '',
         'If you did not request this code, you can safely ignore this message.',
     ]
-    old_timeout = socket.getdefaulttimeout()
-    socket.setdefaulttimeout(10)
     try:
-        send_mail(
-            subject='Your Splitwise verification code',
-            message='\n'.join(message_lines),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[sanitized_email],
-            fail_silently=False,
+        _send_email(
+            subject='Your Balance Studio verification code',
+            text_body='\n'.join(message_lines),
+            to_email=sanitized_email,
         )
     except Exception as exc:
         logger.warning("Failed to send OTP email to %s: %s", sanitized_email, exc)
         raise OTPDeliveryError("Unable to send verification email right now. Please try again later.") from exc
-    finally:
-        socket.setdefaulttimeout(old_timeout)
 
 
 def verify_signup_otp(email: str, code: str) -> bool:
@@ -156,14 +170,12 @@ def issue_password_reset_token(user: User) -> str:
         'If you did not request this, you can safely ignore this email.',
     ]
     try:
-        send_mail(
+        _send_email(
             subject='Password Reset Request',
-            message='\n'.join(message_lines),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[user.email],
-            fail_silently=False,
+            text_body='\n'.join(message_lines),
+            to_email=user.email,
         )
-    except smtplib.SMTPException as exc:
+    except Exception as exc:
         logger.exception("Failed to send password reset email to %s", user.email)
         raise OTPDeliveryError("Unable to send password reset email right now. Please try again later.") from exc
 
@@ -227,14 +239,12 @@ def send_friend_invite_email(invite: FriendInvite) -> None:
         target_url,
     ]
     try:
-        send_mail(
+        _send_email(
             subject=f"{inviter_name} sent you a Balance Studio invite",
-            message='\n'.join(message_lines),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[invite.invitee_email],
-            fail_silently=False,
+            text_body='\n'.join(message_lines),
+            to_email=invite.invitee_email,
         )
-    except smtplib.SMTPException as exc:
+    except Exception as exc:
         logger.exception("Failed to send friend invite email to %s", invite.invitee_email)
         raise InviteDeliveryError("Could not send invite email right now.") from exc
 
@@ -477,15 +487,13 @@ def send_settlement_email(record: FriendSettlement) -> bool:
         "Open Balance Studio to review the updated totals.",
     ]
     try:
-        send_mail(
+        _send_email(
             subject=f"${amount:.2f} settled with {initiator.name}",
-            message='\n'.join(message_lines),
-            from_email=SETTLEMENT_FROM_EMAIL,
-            recipient_list=[target_email],
-            fail_silently=False,
+            text_body='\n'.join(message_lines),
+            to_email=target_email,
         )
         return True
-    except smtplib.SMTPException:
+    except Exception:
         logger.exception("Failed to send settlement email to %s", target_email)
         return False
 

@@ -11,3 +11,4 @@ channels==4.1.0
 channels-redis==4.2.0
 uvicorn[standard]==0.32.1
 whitenoise==6.8.2
+resend==2.10.0
