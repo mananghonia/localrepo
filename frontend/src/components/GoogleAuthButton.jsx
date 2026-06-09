@@ -8,6 +8,7 @@ const GoogleAuthButton = ({ onCredential, onError }) => {
 
   const login = useGoogleLogin({
     flow: 'implicit',
+    scope: 'openid email profile',
     onSuccess: (tokenResponse) => {
       if (!tokenResponse.access_token) {
         setStatus('Google did not return a token')
