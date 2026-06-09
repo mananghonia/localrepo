@@ -115,6 +115,8 @@ EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False').lower() == 'true'
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Splitwise Clone <no-reply@splitwise.local>')
 SIGNUP_OTP_EXPIRATION_MINUTES = int(os.environ.get('SIGNUP_OTP_EXPIRATION_MINUTES', 10))
 BYPASS_SIGNUP_OTP_CODE = os.environ.get('BYPASS_SIGNUP_OTP_CODE', '000000')
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+RESEND_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL', 'Balance Studio <onboarding@resend.dev>')
 
 if (
     EMAIL_BACKEND.endswith('smtp.EmailBackend')
