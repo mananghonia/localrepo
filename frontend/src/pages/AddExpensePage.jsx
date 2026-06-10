@@ -6,6 +6,18 @@ import * as expensesApi from '../services/expensesApi'
 import { emitNotificationsUpdated } from '../utils/notificationEvents'
 
 
+const getInitials = (name = '') => {
+  const parts = name.trim().split(' ').filter(Boolean)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return name.slice(0, 2).toUpperCase()
+}
+const AVATAR_COLORS = ['#8a7bff', '#6bf2c1', '#ffb09e', '#ffce6e', '#a78bfa', '#34d399', '#f472b6']
+const getAvatarColor = (name = '') => {
+  let hash = 0
+  for (const c of name) hash = (hash * 31 + c.charCodeAt(0)) % AVATAR_COLORS.length
+  return AVATAR_COLORS[Math.abs(hash)]
+}
+
 const sanitizeAmountInput = (value) => {
   if (value === undefined || value === null) {
     return ''
@@ -323,7 +335,7 @@ const AddExpensePage = () => {
       <div className="expense-shell">
         <article className="glass-card expense-sheet">
           <div className="expense-sheet__grid">
-            <section className="expense-block expense-step">
+            <section className="expense-block expense-step expense-step--1">
               <header className="expense-step__header">
                 <div>
                   <div className="expense-step__kicker">
@@ -348,12 +360,17 @@ const AddExpensePage = () => {
                 <ul className="suggestions-list">
                   {filteredDirectory.map((person) => (
                     <li key={person.id}>
-                      <div>
-                        <strong>{person.name}</strong>
-                        <span>@{person.username}</span>
+                      <div className="expense-suggest__left">
+                        <div className="expense-avatar expense-avatar--sm" style={{ background: getAvatarColor(person.name) }}>
+                          {getInitials(person.name)}
+                        </div>
+                        <div>
+                          <strong>{person.name}</strong>
+                          <span>@{person.username}</span>
+                        </div>
                       </div>
-                      <button type="button" className="pill pill--muted" onClick={() => handleAddPerson(person)}>
-                        Add
+                      <button type="button" className="expense-suggest__add" onClick={() => handleAddPerson(person)}>
+                        + Add
                       </button>
                     </li>
                   ))}
@@ -399,7 +416,7 @@ const AddExpensePage = () => {
               </div>
             </section>
 
-            <section className="expense-block expense-block--split expense-step">
+            <section className="expense-block expense-block--split expense-step expense-step--2">
               <header className="expense-step__header">
                 <div>
                   <div className="expense-step__kicker">
@@ -447,9 +464,14 @@ const AddExpensePage = () => {
                 {participants.length ? (
                   participants.map((person) => (
                     <div key={person.id} className="participants-row">
-                      <div className="participants-row__meta">
-                        <strong>{person.name}</strong>
-                        {person.invited ? <span className="pill pill--soft">Invited</span> : null}
+                      <div className="participants-row__left">
+                        <div className="expense-avatar expense-avatar--sm" style={{ background: getAvatarColor(person.name) }}>
+                          {getInitials(person.name)}
+                        </div>
+                        <div className="participants-row__meta">
+                          <strong>{person.isSelf ? 'You' : person.name}</strong>
+                          {person.invited ? <span className="pill pill--soft">Invited</span> : null}
+                        </div>
                       </div>
                       <div className="participants-row__split">
                         <div className="participants-row__input">

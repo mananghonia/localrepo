@@ -1841,6 +1841,8 @@ button.pill--muted:hover {
   border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
+  position: relative;
+  overflow: hidden;
 }
 
 .expense-step__header {
@@ -1903,6 +1905,7 @@ button.pill--muted:hover {
   border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.15s, background 0.15s;
 }
 
 .suggestions-list li > div {
@@ -1953,12 +1956,15 @@ button.pill--muted:hover {
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
+  transition: border-color 0.15s, background 0.15s;
 }
 
 .participants-row__meta {
   display: flex;
-  gap: 0.6rem;
+  gap: 0.4rem;
   align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .participants-row__split {
@@ -1995,6 +2001,91 @@ button.pill--muted:hover {
 .participants-row__input input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
+}
+
+/* ── Expense avatar ──────────────────────────────────────────── */
+.expense-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #05060f;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+.expense-avatar--sm {
+  width: 32px;
+  height: 32px;
+  font-size: 0.72rem;
+}
+
+/* ── Suggestion item left ─────────────────────────────────────── */
+.expense-suggest__left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.expense-suggest__add {
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid rgba(138, 123, 255, 0.35);
+  background: rgba(138, 123, 255, 0.1);
+  color: #8a7bff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.expense-suggest__add:hover {
+  background: rgba(138, 123, 255, 0.22);
+  border-color: rgba(138, 123, 255, 0.6);
+}
+
+/* ── Suggestion item hover ────────────────────────────────────── */
+.suggestions-list li:hover {
+  border-color: rgba(138, 123, 255, 0.3);
+  background: rgba(138, 123, 255, 0.06);
+}
+
+/* ── Participants row left ────────────────────────────────────── */
+.participants-row__left {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+/* ── Participants row hover ───────────────────────────────────── */
+.participants-row:hover {
+  border-color: rgba(138, 123, 255, 0.3);
+  background: rgba(138, 123, 255, 0.05);
+}
+
+/* ── Step accent top bars ─────────────────────────────────────── */
+.expense-step::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+}
+
+.expense-step--1::before {
+  background: linear-gradient(90deg, #ffb09e, #ffce6e);
+}
+
+.expense-step--2::before {
+  background: linear-gradient(90deg, #8a7bff, #6bf2c1);
 }
 
 .split-actions {
