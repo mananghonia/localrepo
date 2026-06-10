@@ -64,7 +64,12 @@ MONGODB_DB_NAME = os.environ.get('MONGODB_DB_NAME', 'splitwise')
 MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/splitwise')
 # Avoid hard-failing on import if Mongo isn't reachable yet (common during container startup
 # and when running management commands like collectstatic).
-connect(db=MONGODB_DB_NAME, host=MONGODB_URI, alias='default', connect=False)
+if os.environ.get('USE_MONGOMOCK') == '1':
+    import mongomock
+    connect(db=MONGODB_DB_NAME, host='localhost', alias='default', connect=False,
+            mongo_client_class=mongomock.MongoClient)
+else:
+    connect(db=MONGODB_DB_NAME, host=MONGODB_URI, alias='default', connect=False)
 
 
 # Application definition

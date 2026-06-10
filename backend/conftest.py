@@ -1,16 +1,11 @@
 import os
 
-os.environ.setdefault("MONGODB_URI", "mongodb://localhost")
+# Must be set before Django/settings.py loads so mongoengine uses mongomock
+os.environ.setdefault("USE_MONGOMOCK", "1")
 os.environ.setdefault("MONGODB_DB_NAME", "bs_testdb")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-not-for-production")
 os.environ.setdefault("ANTHROPIC_API_KEY", "test-key")
 os.environ.setdefault("DEBUG", "True")
-
-# Patch pymongo.MongoClient with mongomock *before* Django loads settings.py.
-# mongoengine >= 0.27 removed mongomock:// URI support, so we patch at the
-# pymongo level instead — any MongoClient call transparently gets an in-memory mock.
-import mongomock
-mongomock.patch().start()
 
 import pytest
 import mongoengine
