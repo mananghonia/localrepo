@@ -189,9 +189,6 @@ const AIPage = () => {
         <aside className={`ai-sidebar${sidebarOpen ? '' : ' ai-sidebar--hidden'}`}>
           <div className="ai-sidebar__head">
             <span className="ai-sidebar__label">Conversations</span>
-            <button type="button" className="ai-sidebar__new" onClick={createSession} title="New conversation">
-              <PlusIcon />
-            </button>
           </div>
 
           <div className="ai-sidebar__sessions">
@@ -220,6 +217,13 @@ const AIPage = () => {
                 </button>
               ))
             )}
+          </div>
+
+          <div className="ai-sidebar__foot">
+            <button type="button" className="ai-sidebar__new-full" onClick={createSession}>
+              <PlusIcon />
+              New conversation
+            </button>
           </div>
         </aside>
 
