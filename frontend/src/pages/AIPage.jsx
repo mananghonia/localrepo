@@ -9,14 +9,23 @@ const SUGGESTED = [
   'Who owes me the most money?',
   'Summarize my recent expenses',
   'Which group has the highest unsettled amount?',
-  'How much have I spent in total across all expenses?',
+  'How much have I spent in total?',
 ]
 
-const SparkleIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-    <path d="M12 2L13.09 8.26L19 9L13.09 9.74L12 16L10.91 9.74L5 9L10.91 8.26L12 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-    <path d="M5 17L5.87 20.13L9 21L5.87 21.87L5 25L4.13 21.87L1 21L4.13 20.13L5 17Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
-    <path d="M19 3L19.65 5.35L22 6L19.65 6.65L19 9L18.35 6.65L16 6L18.35 5.35L19 3Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+const SparkleIcon = ({ size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path
+      d="M12 2L13.5 9.5L21 11L13.5 12.5L12 20L10.5 12.5L3 11L10.5 9.5L12 2Z"
+      stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"
+    />
+    <path
+      d="M5 16L5.75 18.75L8.5 19.5L5.75 20.25L5 23L4.25 20.25L1.5 19.5L4.25 18.75L5 16Z"
+      stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"
+    />
+    <path
+      d="M19 2L19.6 4.4L22 5L19.6 5.6L19 8L18.4 5.6L16 5L18.4 4.4L19 2Z"
+      stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"
+    />
   </svg>
 )
 
@@ -28,6 +37,11 @@ const AIPage = () => {
   const [error, setError] = useState('')
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = '' }
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -66,35 +80,28 @@ const AIPage = () => {
   const isEmpty = messages.length === 0
 
   return (
-    <section className="workspace-screen" style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
+    <section className="ai-screen">
       <AppNav />
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem 1rem 0' }}>
-        <div style={{ maxWidth: '720px', margin: '0 auto' }}>
+      <div className="ai-body">
+        <div className="ai-inner" style={isEmpty ? { display: 'flex', flexDirection: 'column', minHeight: '100%', justifyContent: 'center' } : undefined}>
 
           {isEmpty ? (
-            <div style={{ paddingTop: '3rem', textAlign: 'center' }}>
-              <div style={{
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                width: '56px', height: '56px', borderRadius: '16px',
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                marginBottom: '1.25rem', color: '#fff'
-              }}>
-                <SparkleIcon />
+            <div className="ai-welcome" style={{ paddingTop: 0 }}>
+              <div className="ai-welcome__icon">
+                <SparkleIcon size={26} />
               </div>
-              <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-                AI Finance Assistant
-              </h1>
-              <p className="hint-text" style={{ marginBottom: '2rem', maxWidth: '420px', margin: '0 auto 2rem' }}>
-                Ask anything about your balances, expenses, or friends. Your data stays private — it's sent only when you ask.
+              <h1>AI Finance Assistant</h1>
+              <p className="ai-welcome__sub">
+                Ask anything about your balances, expenses, or friends.
+                Your live data is used as context — nothing is stored.
               </p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', justifyContent: 'center', marginBottom: '2rem' }}>
+              <div className="ai-chips">
                 {SUGGESTED.map((s) => (
                   <button
                     key={s}
                     type="button"
-                    className="ghost-btn"
-                    style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem' }}
+                    className="ai-chip"
                     onClick={() => submit(s)}
                   >
                     {s}
@@ -103,51 +110,20 @@ const AIPage = () => {
               </div>
             </div>
           ) : (
-            <div style={{ paddingBottom: '1rem' }}>
+            <div className="ai-messages">
               {messages.map((msg, i) => (
                 <div
                   key={i}
-                  style={{
-                    display: 'flex',
-                    justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                    marginBottom: '1rem',
-                  }}
+                  className={`ai-msg ai-msg--${msg.role === 'user' ? 'user' : 'ai'}`}
                 >
                   {msg.role === 'assistant' && (
-                    <div style={{
-                      width: '28px', height: '28px', borderRadius: '8px', flexShrink: 0,
-                      background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: '#fff', marginRight: '0.6rem', marginTop: '2px',
-                    }}>
-                      <SparkleIcon />
+                    <div className="ai-avatar">
+                      <SparkleIcon size={14} />
                     </div>
                   )}
-                  <div style={{
-                    maxWidth: '80%',
-                    padding: '0.7rem 1rem',
-                    borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                    background: msg.role === 'user'
-                      ? 'linear-gradient(135deg, #6366f1, #8b5cf6)'
-                      : 'rgba(255,255,255,0.07)',
-                    color: msg.role === 'user' ? '#fff' : 'inherit',
-                    fontSize: '0.9rem',
-                    lineHeight: '1.6',
-                    border: msg.role === 'assistant' ? '1px solid rgba(255,255,255,0.1)' : 'none',
-                  }}>
+                  <div className={`ai-bubble ai-bubble--${msg.role === 'user' ? 'user' : 'ai'}`}>
                     {msg.role === 'assistant' ? (
-                      <ReactMarkdown
-                        components={{
-                          p: ({ children }) => <p style={{ margin: '0 0 0.5em' }}>{children}</p>,
-                          strong: ({ children }) => <strong style={{ fontWeight: 700, color: 'rgba(255,255,255,0.95)' }}>{children}</strong>,
-                          ul: ({ children }) => <ul style={{ margin: '0.25em 0 0.5em', paddingLeft: '1.25em' }}>{children}</ul>,
-                          ol: ({ children }) => <ol style={{ margin: '0.25em 0 0.5em', paddingLeft: '1.25em' }}>{children}</ol>,
-                          li: ({ children }) => <li style={{ marginBottom: '0.2em' }}>{children}</li>,
-                          code: ({ children }) => <code style={{ background: 'rgba(255,255,255,0.1)', borderRadius: '4px', padding: '0.1em 0.35em', fontSize: '0.85em' }}>{children}</code>,
-                        }}
-                      >
-                        {msg.content}
-                      </ReactMarkdown>
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
                     ) : (
                       msg.content
                     )}
@@ -156,33 +132,32 @@ const AIPage = () => {
               ))}
 
               {loading && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1rem' }}>
-                  <div style={{
-                    width: '28px', height: '28px', borderRadius: '8px', flexShrink: 0,
-                    background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
-                  }}>
-                    <SparkleIcon />
+                <div className="ai-thinking">
+                  <div className="ai-avatar">
+                    <SparkleIcon size={14} />
                   </div>
-                  <div style={{
-                    padding: '0.7rem 1rem', borderRadius: '16px 16px 16px 4px',
-                    background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
-                    fontSize: '0.9rem', color: 'rgba(255,255,255,0.5)',
-                  }}>
-                    Thinking…
+                  <div className="ai-thinking__bubble">
+                    <span className="ai-dot" />
+                    <span className="ai-dot" />
+                    <span className="ai-dot" />
                   </div>
                 </div>
               )}
 
-              {error && <div className="error-banner" style={{ marginBottom: '1rem' }}>{error}</div>}
+              {error && (
+                <div className="error-banner" style={{ marginBottom: '0.9rem' }}>
+                  {error}
+                </div>
+              )}
             </div>
           )}
+
           <div ref={bottomRef} />
         </div>
       </div>
 
-      <div style={{ padding: '1rem', borderTop: '1px solid rgba(255,255,255,0.08)', background: 'var(--color-surface, #0f1117)' }}>
-        <div style={{ maxWidth: '720px', margin: '0 auto', display: 'flex', gap: '0.6rem', alignItems: 'flex-end' }}>
+      <div className="ai-footer">
+        <div className="ai-composer">
           <textarea
             ref={inputRef}
             rows={1}
@@ -192,12 +167,10 @@ const AIPage = () => {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={loading}
-            style={{ flex: 1, resize: 'none', lineHeight: '1.5', minHeight: '44px', maxHeight: '120px', overflowY: 'auto' }}
           />
           <button
             type="button"
-            className="primary-btn"
-            style={{ flexShrink: 0, height: '44px', padding: '0 1.25rem' }}
+            className="ai-send-btn"
             onClick={() => submit()}
             disabled={loading || !input.trim()}
           >
@@ -205,8 +178,8 @@ const AIPage = () => {
           </button>
         </div>
         {!isEmpty && (
-          <p className="hint-text" style={{ textAlign: 'center', marginTop: '0.5rem', fontSize: '0.72rem' }}>
-            Responses are based on your live Balance Studio data · Press Enter to send
+          <p className="ai-footer__hint">
+            Powered by your live Balance Studio data · Enter to send
           </p>
         )}
       </div>
