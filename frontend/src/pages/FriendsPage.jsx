@@ -7,6 +7,19 @@ import * as friendsApi from '../services/friendsApi'
 import { emitInvitesUpdated, INVITES_UPDATED_EVENT } from '../utils/inviteEvents'
 import { FRIENDS_DATA_UPDATED_EVENT } from '../utils/realtimeStreams'
 
+const getInitials = (name = '') => {
+  const parts = name.trim().split(' ').filter(Boolean)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return name.slice(0, 2).toUpperCase()
+}
+
+const AVATAR_COLORS = ['#8a7bff', '#6bf2c1', '#ffb09e', '#ffce6e', '#a78bfa', '#34d399', '#f472b6']
+const getAvatarColor = (name = '') => {
+  let hash = 0
+  for (const c of name) hash = (hash * 31 + c.charCodeAt(0)) % AVATAR_COLORS.length
+  return AVATAR_COLORS[Math.abs(hash)]
+}
+
 const FriendsPage = () => {
   const location = useLocation()
   const { accessToken, refreshAccessToken } = useAuth()
@@ -168,13 +181,14 @@ const FriendsPage = () => {
       <div className="friends-shell">
         <article className="glass-card friends-card">
           <div className="friends-summary">
-            <div>
-              <p className="tag-pill pill--warning">You owe</p>
-              <strong>${youOweDisplay}</strong>
+            <div className="friends-stat">
+              <span className="friends-stat__label">You owe</span>
+              <strong className="friends-stat__value friends-stat__value--negative">${youOweDisplay}</strong>
             </div>
-            <div>
-              <p className="tag-pill pill--success">Owes you</p>
-              <strong>${owesYouDisplay}</strong>
+            <div className="friends-stat friends-stat--divider" />
+            <div className="friends-stat">
+              <span className="friends-stat__label">Owes you</span>
+              <strong className="friends-stat__value friends-stat__value--positive">${owesYouDisplay}</strong>
             </div>
           </div>
 
@@ -233,15 +247,30 @@ const FriendsPage = () => {
                           }
                         }}
                       >
-                        <div>
-                          <strong>{friend.name}</strong>
-                          <p className="hint-text">
-                            @{friend.username || 'friend'} · {friend.email}
-                          </p>
+                        <div className="friends-ledger__left">
+                          <div
+                            className="friends-avatar"
+                            style={{ background: getAvatarColor(friend.name) }}
+                          >
+                            {getInitials(friend.name)}
+                          </div>
+                          <div>
+                            <strong className="friends-ledger__name">{friend.name}</strong>
+                            <p className="hint-text">
+                              @{friend.username || 'friend'} · {friend.email}
+                            </p>
+                          </div>
                         </div>
-                        <span className={amountClass}>
-                          {isSettled ? 'Settled' : `${isCredit ? '+' : '-'}$${amount}`}
-                        </span>
+                        <div className="friends-ledger__right">
+                          <span className={amountClass}>
+                            {isSettled ? 'Settled' : `${isCredit ? '' : '-'}$${amount}`}
+                          </span>
+                          {!isSettled && (
+                            <span className="friends-ledger__direction">
+                              {isCredit ? 'owes you' : 'you owe'}
+                            </span>
+                          )}
+                        </div>
                       </li>
                     )
                   })
@@ -287,7 +316,8 @@ const FriendsPage = () => {
                 </div>
               ) : (
                 <div className="friends-empty-callout" id="invites">
-                  <p className="input-label">No pending invitations</p>
+                  <div className="friends-empty-callout__icon">✉</div>
+                  <p className="friends-empty-callout__title">No pending invitations</p>
                   <p className="hint-text">When someone invites you, it will show up here.</p>
                 </div>
               )}
