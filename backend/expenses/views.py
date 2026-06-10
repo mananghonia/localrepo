@@ -1,8 +1,10 @@
 import heapq
+import json as _json
 import logging
 from collections import defaultdict
 from datetime import datetime, timezone
 
+from django.conf import settings
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -568,3 +570,77 @@ class AnalyticsView(APIView):
 				'net': round(owed_to_you - you_owe, 2),
 			},
 		})
+
+
+class ScanReceiptView(APIView):
+	"""POST /api/expenses/scan-receipt/  — Claude Vision extracts note + total."""
+
+	def post(self, request):
+		api_key = getattr(settings, 'ANTHROPIC_API_KEY', '')
+		if not api_key:
+			return Response({'error': 'AI features are not configured on the server.'}, status=503)
+
+		image_data = request.data.get('image', '')
+		mime_type = request.data.get('mime_type', 'image/jpeg')
+
+		if not image_data:
+			return Response({'error': 'No image provided.'}, status=400)
+
+		if len(image_data) > 10_000_000:
+			return Response({'error': 'Image too large. Please use a smaller photo.'}, status=400)
+
+		allowed_types = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+		if mime_type not in allowed_types:
+			mime_type = 'image/jpeg'
+
+		try:
+			import anthropic
+			client = anthropic.Anthropic(api_key=api_key)
+
+			result = client.messages.create(
+				model='claude-haiku-4-5-20251001',
+				max_tokens=150,
+				messages=[{
+					'role': 'user',
+					'content': [
+						{
+							'type': 'image',
+							'source': {
+								'type': 'base64',
+								'media_type': mime_type,
+								'data': image_data,
+							},
+						},
+						{
+							'type': 'text',
+							'text': (
+								'Extract from this receipt: the merchant/restaurant name (or a short description) '
+								'and the final total amount paid. '
+								'Reply ONLY with valid JSON, no other text: '
+								'{"note": "Merchant Name", "total_amount": 12.34}. '
+								'Keep note under 50 characters. If total is unclear use 0.'
+							),
+						},
+					],
+				}],
+			)
+
+			raw = result.content[0].text.strip()
+			start, end = raw.find('{'), raw.rfind('}') + 1
+			if start >= 0 and end > start:
+				raw = raw[start:end]
+
+			parsed = _json.loads(raw)
+			note = str(parsed.get('note', '')).strip()[:80]
+			try:
+				total = round(float(parsed.get('total_amount', 0)), 2)
+			except (TypeError, ValueError):
+				total = 0.0
+
+			return Response({'note': note, 'total_amount': total if total > 0 else None})
+
+		except _json.JSONDecodeError:
+			return Response({'error': 'Could not read the receipt. Try a clearer photo.'}, status=422)
+		except Exception as exc:
+			logger.exception('Receipt scan error: %s', exc)
+			return Response({'error': 'Receipt scanning is unavailable right now.'}, status=503)

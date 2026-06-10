@@ -19,3 +19,9 @@ export const deleteExpense = (auth, expenseId) =>
 
 export const fetchActivity = (auth, { limit = 40, offset = 0 } = {}) =>
   authorizedRequest(`/api/activity/?limit=${limit}&offset=${offset}`, auth)
+
+export const scanReceipt = (auth, imageBase64, mimeType = 'image/jpeg') =>
+  authorizedRequest('/api/expenses/scan-receipt/', auth, {
+    method: 'POST',
+    body: JSON.stringify({ image: imageBase64, mime_type: mimeType }),
+  })

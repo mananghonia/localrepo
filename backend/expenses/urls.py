@@ -5,11 +5,13 @@ from .views import (
     AnalyticsView,
     ExpenseDeleteView,
     ExpenseListCreateView,
+    ScanReceiptView,
     SimplifyDebtsView,
 )
 
 urlpatterns = [
     path('expenses/', ExpenseListCreateView.as_view()),
+    path('expenses/scan-receipt/', ScanReceiptView.as_view()),
     path('expenses/<str:expense_id>/', ExpenseDeleteView.as_view()),
     path('activity/', ActivityFeedView.as_view()),
     path('analytics/', AnalyticsView.as_view()),

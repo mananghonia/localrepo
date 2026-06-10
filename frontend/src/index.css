@@ -2104,6 +2104,165 @@ button.pill--muted:hover {
   color: rgba(255, 255, 255, 0.8);
 }
 
+/* ── Receipt scan card ────────────────────────────────────────── */
+.receipt-scan-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.95rem 1.25rem;
+  margin-bottom: 1.75rem;
+  border-radius: 18px;
+  border: 1px dashed rgba(107, 242, 193, 0.28);
+  background: rgba(107, 242, 193, 0.04);
+  flex-wrap: wrap;
+}
+
+.receipt-scan-card__left {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.receipt-scan-card__icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(107, 242, 193, 0.12);
+  border: 1px solid rgba(107, 242, 193, 0.25);
+  color: #6bf2c1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.receipt-scan-card__title {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: #e8e8e8;
+  margin: 0 0 0.15rem;
+}
+
+.receipt-scan-card__error {
+  font-size: 0.82rem;
+  color: #ff9090;
+  flex: 1;
+  min-width: 160px;
+}
+
+.receipt-scan-card__btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 1.15rem;
+  border-radius: 999px;
+  border: 1px solid rgba(107, 242, 193, 0.4);
+  background: rgba(107, 242, 193, 0.1);
+  color: #6bf2c1;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.receipt-scan-card__btn:hover:not(:disabled) {
+  background: rgba(107, 242, 193, 0.2);
+  border-color: rgba(107, 242, 193, 0.65);
+}
+
+.receipt-scan-card__btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.receipt-scan-card__spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid rgba(107, 242, 193, 0.3);
+  border-top-color: #6bf2c1;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ── $ prefix on total input ──────────────────────────────────── */
+.expense-amount-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.expense-amount-wrap__prefix {
+  position: absolute;
+  left: 1rem;
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.5);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.expense-amount-wrap__input {
+  padding-left: 1.85rem !important;
+  width: 100%;
+}
+
+/* ── Avatar participant chips ─────────────────────────────────── */
+.expense-avatar--xs {
+  width: 22px;
+  height: 22px;
+  font-size: 0.52rem;
+}
+
+.participant-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.28rem 0.65rem 0.28rem 0.32rem;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+.participant-chip--self {
+  border-color: rgba(107, 242, 193, 0.4);
+  background: rgba(107, 242, 193, 0.08);
+  color: #b5f7df;
+}
+
+.participant-chip--friend {
+  border-color: rgba(138, 123, 255, 0.3);
+  background: rgba(138, 123, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.participant-chip__name {
+  font-size: 0.84rem;
+}
+
+.participant-chip__remove {
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 0.1rem;
+  transition: color 0.12s;
+}
+
+.participant-chip__remove:hover {
+  color: #fff;
+}
+
 @media (max-width: 720px) {
   .participants-row {
     flex-direction: column;

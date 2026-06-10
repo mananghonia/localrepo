@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import AppNav from '../components/AppNav.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import * as friendsApi from '../services/friendsApi'
@@ -93,6 +93,9 @@ const AddExpensePage = () => {
   const selfId = user?.id || user?._id || 'self'
   const [saveStatus, setSaveStatus] = useState({ message: '', error: '' })
   const [isSaving, setIsSaving] = useState(false)
+  const [isScanning, setIsScanning] = useState(false)
+  const [scanError, setScanError] = useState('')
+  const scanInputRef = useRef(null)
 
   useEffect(() => {
     const loadFriends = async () => {
@@ -186,6 +189,37 @@ const AddExpensePage = () => {
   const handleRemove = (id) => {
     const next = participants.filter((person) => person.id !== id)
     commitParticipants(next)
+  }
+
+  const handleScanFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setIsScanning(true)
+    setScanError('')
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result.split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+      const result = await expensesApi.scanReceipt(
+        { accessToken, refreshAccessToken },
+        base64,
+        file.type || 'image/jpeg',
+      )
+      if (result.note) setExpenseName(result.note)
+      if (result.total_amount) {
+        const val = String(result.total_amount)
+        setTotal(val)
+        if (autoSplit) setParticipants((prev) => distributeEvenly(prev, val))
+      }
+    } catch (err) {
+      setScanError(err.message || 'Could not read the receipt. Try a clearer photo.')
+    } finally {
+      setIsScanning(false)
+    }
   }
 
   const restoreEqualSplit = () => {
@@ -334,6 +368,40 @@ const AddExpensePage = () => {
 
       <div className="expense-shell">
         <article className="glass-card expense-sheet">
+
+          {/* ── Receipt scanner ── */}
+          <div className="receipt-scan-card">
+            <div className="receipt-scan-card__left">
+              <div className="receipt-scan-card__icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                </svg>
+              </div>
+              <div>
+                <p className="receipt-scan-card__title">Scan a receipt</p>
+                <p className="hint-text">Auto-fill name &amp; total from a photo</p>
+              </div>
+            </div>
+            {scanError ? <span className="receipt-scan-card__error">{scanError}</span> : null}
+            <button
+              type="button"
+              className="receipt-scan-card__btn"
+              onClick={() => scanInputRef.current?.click()}
+              disabled={isScanning}
+            >
+              {isScanning ? <span className="receipt-scan-card__spinner" /> : null}
+              {isScanning ? 'Reading…' : 'Choose photo'}
+            </button>
+            <input
+              ref={scanInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleScanFile}
+            />
+          </div>
+
           <div className="expense-sheet__grid">
             <section className="expense-block expense-step expense-step--1">
               <header className="expense-step__header">
@@ -394,9 +462,15 @@ const AddExpensePage = () => {
                     {participantSummary.map((person) => (
                       <div
                         key={person.id}
-                        className={`participant-chip pill ${person.isSelf ? 'pill--success' : 'pill--soft'}`}
+                        className={`participant-chip ${person.isSelf ? 'participant-chip--self' : 'participant-chip--friend'}`}
                       >
-                        <span>{person.label}</span>
+                        <div
+                          className="expense-avatar expense-avatar--xs"
+                          style={{ background: person.isSelf ? '#6bf2c1' : getAvatarColor(person.label) }}
+                        >
+                          {getInitials(person.label)}
+                        </div>
+                        <span className="participant-chip__name">{person.label}</span>
                         {person.isSelf ? null : (
                           <button
                             type="button"
@@ -404,7 +478,7 @@ const AddExpensePage = () => {
                             onClick={() => handleRemove(person.id)}
                             aria-label={`Remove ${person.label}`}
                           >
-                            Remove
+                            ×
                           </button>
                         )}
                       </div>
@@ -451,15 +525,18 @@ const AddExpensePage = () => {
               <label className="input-label" htmlFor="expense-total">
                 Total amount
               </label>
-              <input
-                id="expense-total"
-                className="text-input"
-                type="number"
-                min="0"
-                placeholder="0.00"
-                value={total}
-                onChange={handleTotalChange}
-              />
+              <div className="expense-amount-wrap">
+                <span className="expense-amount-wrap__prefix">$</span>
+                <input
+                  id="expense-total"
+                  className="text-input expense-amount-wrap__input"
+                  type="number"
+                  min="0"
+                  placeholder="0.00"
+                  value={total}
+                  onChange={handleTotalChange}
+                />
+              </div>
               <div className="participants-list">
                 {participants.length ? (
                   participants.map((person) => (
