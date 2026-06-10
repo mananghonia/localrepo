@@ -1,5 +1,7 @@
+import heapq
 import logging
-from datetime import timezone
+from collections import defaultdict
+from datetime import datetime, timezone
 
 from rest_framework import status
 from rest_framework.response import Response
@@ -432,4 +434,137 @@ class ActivityFeedView(APIView):
 			"total": total,
 			"offset": offset,
 			"limit": limit,
+		})
+
+
+# ── Debt Simplification helper ────────────────────────────────────────
+def _min_cash_flow(people):
+	"""
+	Greedy minimum cash-flow algorithm.
+	people: list of {'id', 'name', 'net'}
+	Returns minimal list of {'from_name', 'to_name', 'amount'} transactions.
+	"""
+	creditors = []  # max-heap: (-net, name, id)
+	debtors = []    # min-heap: (net, name, id)  -- net is negative
+
+	for p in people:
+		net = round(p['net'], 2)
+		if net > 0.01:
+			heapq.heappush(creditors, (-net, p['name'], p['id']))
+		elif net < -0.01:
+			heapq.heappush(debtors, (net, p['name'], p['id']))
+
+	transactions = []
+	while creditors and debtors:
+		neg_credit, cred_name, cred_id = heapq.heappop(creditors)
+		credit = -neg_credit
+		debt_val, debt_name, debt_id = heapq.heappop(debtors)
+
+		amount = min(credit, -debt_val)
+		transactions.append({
+			'from_name': debt_name,
+			'to_name': cred_name,
+			'amount': round(amount, 2),
+		})
+
+		rem_credit = credit - amount
+		rem_debt = debt_val + amount
+		if rem_credit > 0.01:
+			heapq.heappush(creditors, (-rem_credit, cred_name, cred_id))
+		if rem_debt < -0.01:
+			heapq.heappush(debtors, (rem_debt, debt_name, debt_id))
+
+	return transactions
+
+
+class SimplifyDebtsView(APIView):
+	def get(self, request):
+		user = request.user
+		friendships = list(Friendship.objects(user=user))
+
+		if not friendships:
+			return Response({'transactions': [], 'original_count': 0, 'simplified_count': 0})
+
+		# Build net positions for every person in this user's circle
+		# user's net = sum of all friendship balances
+		# each friend's net = negation of their friendship balance with user
+		user_net = sum(float(f.balance or 0) for f in friendships)
+		people = [{'id': str(user.id), 'name': 'You', 'net': round(user_net, 2)}]
+
+		for f in friendships:
+			people.append({
+				'id': str(f.friend.id),
+				'name': f.friend.name,
+				'net': round(-float(f.balance or 0), 2),
+			})
+
+		# Count non-zero bilateral relationships as "original" transactions
+		original_count = sum(1 for f in friendships if abs(float(f.balance or 0)) > 0.01)
+		transactions = _min_cash_flow(people)
+
+		return Response({
+			'transactions': transactions,
+			'original_count': original_count,
+			'simplified_count': len(transactions),
+		})
+
+
+class AnalyticsView(APIView):
+	def get(self, request):
+		user = request.user
+
+		# ── Monthly spending (last 6 months) ──────────────────────────
+		expenses = list(
+			Expense.objects(participants__user=user).order_by('-created_at').limit(300)
+		)
+
+		monthly = defaultdict(lambda: {'your_share': 0.0, 'count': 0, 'sort_key': 0})
+
+		for exp in expenses:
+			if not exp.created_at:
+				continue
+			dt = exp.created_at if exp.created_at.tzinfo else exp.created_at.replace(tzinfo=timezone.utc)
+			key = dt.strftime('%b %Y')
+			sort_key = dt.year * 100 + dt.month
+
+			user_part = next((p for p in exp.participants if str(p.user.id) == str(user.id)), None)
+			if user_part:
+				monthly[key]['your_share'] += float(user_part.amount or 0)
+				monthly[key]['count'] += 1
+				monthly[key]['sort_key'] = max(monthly[key]['sort_key'], sort_key)
+
+		monthly_list = sorted(
+			[{'month': k, 'amount': round(v['your_share'], 2), 'count': v['count']} for k, v in monthly.items()],
+			key=lambda x: next((v['sort_key'] for k, v in monthly.items() if k == x['month']), 0),
+		)[-6:]
+
+		# ── Friend balance breakdown ───────────────────────────────────
+		friendships = list(Friendship.objects(user=user))
+		friends_data = sorted(
+			[
+				{
+					'name': f.friend.name,
+					'balance': round(float(f.balance or 0), 2),
+				}
+				for f in friendships
+				if abs(float(f.balance or 0)) > 0.01
+			],
+			key=lambda x: x['balance'],
+			reverse=True,
+		)
+
+		# ── Summary stats ──────────────────────────────────────────────
+		you_owe = round(sum(abs(float(f.balance)) for f in friendships if float(f.balance or 0) < -0.01), 2)
+		owed_to_you = round(sum(float(f.balance) for f in friendships if float(f.balance or 0) > 0.01), 2)
+		total_expenses = Expense.objects(participants__user=user).count()
+
+		return Response({
+			'monthly': monthly_list,
+			'friends': friends_data,
+			'summary': {
+				'total_expenses': total_expenses,
+				'you_owe': you_owe,
+				'owed_to_you': owed_to_you,
+				'net': round(owed_to_you - you_owe, 2),
+			},
 		})

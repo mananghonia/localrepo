@@ -7,6 +7,7 @@ import AddExpensePage from './pages/AddExpensePage.jsx'
 import FriendsPage from './pages/FriendsPage.jsx'
 import ActivityPage from './pages/ActivityPage.jsx'
 import AIPage from './pages/AIPage.jsx'
+import AnalyticsPage from './pages/AnalyticsPage.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import ResetPasswordPage from './pages/ResetPasswordPage.jsx'
 import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
@@ -58,6 +59,14 @@ function App() {
         element={(
           <ProtectedRoute>
             <AIPage />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/analytics"
+        element={(
+          <ProtectedRoute>
+            <AnalyticsPage />
           </ProtectedRoute>
         )}
       />

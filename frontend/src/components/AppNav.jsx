@@ -49,6 +49,7 @@ const AppNav = () => {
     { label: 'Add expense', path: '/add-expense' },
     { label: 'Friends', path: '/friends' },
     { label: 'Activity', path: '/activity' },
+    { label: 'Analytics', path: '/analytics' },
     { label: 'AI Assistant', path: '/ai' },
     { label: 'Profile', path: '/profile' },
   ]

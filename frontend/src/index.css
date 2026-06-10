@@ -3036,6 +3036,181 @@ button.pill--muted:hover {
   }
 }
 
+/* ── Analytics ───────────────────────────────────────────────── */
+.analytics-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.analytics-stat {
+  background: linear-gradient(135deg, rgba(12, 14, 26, 0.9), rgba(8, 10, 20, 0.95));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 1.25rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.analytics-stat__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.analytics-stat__value {
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.analytics-stat__sub {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.analytics-card {
+  background: linear-gradient(135deg, rgba(12, 14, 26, 0.9), rgba(8, 10, 20, 0.95));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 1.5rem 1.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.analytics-card__title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin: 0 0 0.2rem;
+  letter-spacing: -0.01em;
+}
+
+.analytics-card__sub {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.4);
+  margin: 0 0 1.25rem;
+}
+
+.analytics-tooltip {
+  background: rgba(8, 9, 20, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 0.6rem 0.9rem;
+}
+
+.analytics-tooltip__label {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0 0 0.25rem;
+}
+
+.analytics-tooltip__value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+/* Smart Settlement */
+.analytics-simplify__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.analytics-simplify__badges {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.analytics-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.analytics-badge--dim {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.analytics-badge--accent {
+  background: rgba(138, 123, 255, 0.12);
+  border: 1px solid rgba(138, 123, 255, 0.3);
+  color: var(--violet);
+}
+
+.analytics-badge--mint {
+  background: rgba(107, 242, 193, 0.1);
+  border: 1px solid rgba(107, 242, 193, 0.28);
+  color: var(--mint);
+}
+
+.analytics-txn-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.analytics-txn {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.7rem 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.88rem;
+}
+
+.analytics-txn__from {
+  font-weight: 600;
+  color: #ff9090;
+}
+
+.analytics-txn__arrow {
+  color: rgba(255, 255, 255, 0.25);
+  font-size: 0.8rem;
+}
+
+.analytics-txn__to {
+  font-weight: 600;
+  color: var(--mint);
+  flex: 1;
+}
+
+.analytics-txn__amount {
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: -0.01em;
+}
+
+@media (max-width: 720px) {
+  .analytics-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .analytics-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── AI Finance Assistant ─────────────────────────────────────── */
 .ai-screen {
   position: fixed;
