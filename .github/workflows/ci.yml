@@ -16,7 +16,7 @@ jobs:
         working-directory: backend
 
     env:
-      MONGODB_URI: mongomock://localhost
+      MONGODB_URI: mongodb://localhost
       MONGODB_DB_NAME: bs_testdb
       SECRET_KEY: test-secret-key-not-for-production
       ANTHROPIC_API_KEY: test-key
