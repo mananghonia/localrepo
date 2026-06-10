@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
 import AppNav from '../components/AppNav.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { sendAIMessage } from '../services/aiApi.js'
@@ -131,11 +132,25 @@ const AIPage = () => {
                       : 'rgba(255,255,255,0.07)',
                     color: msg.role === 'user' ? '#fff' : 'inherit',
                     fontSize: '0.9rem',
-                    lineHeight: '1.55',
-                    whiteSpace: 'pre-wrap',
+                    lineHeight: '1.6',
                     border: msg.role === 'assistant' ? '1px solid rgba(255,255,255,0.1)' : 'none',
                   }}>
-                    {msg.content}
+                    {msg.role === 'assistant' ? (
+                      <ReactMarkdown
+                        components={{
+                          p: ({ children }) => <p style={{ margin: '0 0 0.5em' }}>{children}</p>,
+                          strong: ({ children }) => <strong style={{ fontWeight: 700, color: 'rgba(255,255,255,0.95)' }}>{children}</strong>,
+                          ul: ({ children }) => <ul style={{ margin: '0.25em 0 0.5em', paddingLeft: '1.25em' }}>{children}</ul>,
+                          ol: ({ children }) => <ol style={{ margin: '0.25em 0 0.5em', paddingLeft: '1.25em' }}>{children}</ol>,
+                          li: ({ children }) => <li style={{ marginBottom: '0.2em' }}>{children}</li>,
+                          code: ({ children }) => <code style={{ background: 'rgba(255,255,255,0.1)', borderRadius: '4px', padding: '0.1em 0.35em', fontSize: '0.85em' }}>{children}</code>,
+                        }}
+                      >
+                        {msg.content}
+                      </ReactMarkdown>
+                    ) : (
+                      msg.content
+                    )}
                   </div>
                 </div>
               ))}
