@@ -305,7 +305,9 @@ def _round_currency(value) -> float:
 
 
 def normalize_group_label(raw: str) -> str:
-    return (raw or '').strip() or GROUP_FALLBACK_LABEL
+    if not isinstance(raw, str):
+        return GROUP_FALLBACK_LABEL
+    return raw.strip() or GROUP_FALLBACK_LABEL
 
 
 def slugify_group_label(raw: str) -> str:

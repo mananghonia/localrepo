@@ -4,87 +4,13 @@ import AppNav from '../components/AppNav.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import * as expensesApi from '../services/expensesApi'
 import { ACTIVITY_UPDATED_EVENT } from '../utils/realtimeStreams'
-
-const getInitials = (name = '') => {
-  const parts = name.trim().split(' ').filter(Boolean)
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
-  return name.slice(0, 2).toUpperCase()
-}
-const AVATAR_COLORS = ['#8a7bff', '#6bf2c1', '#ffb09e', '#ffce6e', '#a78bfa', '#34d399', '#f472b6']
-const getAvatarColor = (name = '') => {
-  let hash = 0
-  for (const c of name) hash = (hash * 31 + c.charCodeAt(0)) % AVATAR_COLORS.length
-  return AVATAR_COLORS[Math.abs(hash)]
-}
+import { getInitials, getAvatarColor } from '../utils/avatar.js'
+import { formatRelativeTime } from '../utils/formatTime.js'
+import ActivityCard from '../components/ActivityCard.jsx'
 
 const formatCurrency = (value) => {
   const parsed = Number.isFinite(Number(value)) ? Number(value) : 0
   return parsed.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
-}
-
-const formatRelativeTime = (isoString) => {
-  if (!isoString) {
-    return 'Just now'
-  }
-  const timestamp = new Date(isoString)
-  const diffMs = Date.now() - timestamp.getTime()
-  if (Number.isNaN(diffMs)) {
-    return 'Just now'
-  }
-  const minutes = Math.floor(diffMs / 60000)
-  if (minutes < 1) return 'Just now'
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 7) return `${days}d ago`
-  return timestamp.toLocaleDateString()
-}
-
-const ActivityCard = ({ entry, onViewExpense }) => {
-  const isSettlement = entry.status === 'settled'
-  const amount = Number(entry.amount || 0)
-  const amountAbs = Math.abs(amount)
-  const amountLabel = `${amount >= 0 ? '+' : '-'}${formatCurrency(amountAbs)}`
-  const intentLabel = isSettlement ? 'Settled' : (amount >= 0 ? 'They owe you' : 'You owe')
-  const amountClass = isSettlement
-    ? 'activity-amount--settled'
-    : (amount >= 0 ? 'activity-amount--positive' : 'activity-amount--negative')
-  const note = entry.expense?.note || (isSettlement ? null : 'Untitled expense')
-
-  const typeBadgeColor = isSettlement ? '#6bf2c1' : amount >= 0 ? '#8a7bff' : '#ffb09e'
-  const typeBadgeIcon = isSettlement ? '✓' : amount >= 0 ? '↑' : '↓'
-
-  return (
-    <article className="activity-card">
-      <div className="activity-card__stack">
-        <div className="activity-card__badges">
-          <div className="activity-type-badge" style={{ background: typeBadgeColor }}>
-            {typeBadgeIcon}
-          </div>
-          {note ? <span className="activity-card__note">{note}</span> : null}
-        </div>
-        <h2>{entry.summary}</h2>
-        <p>{entry.detail}</p>
-      </div>
-      <div className="activity-card__meta">
-        <div className="activity-card__amount-block">
-          <span className={`activity-amount ${amountClass}`}>{amountLabel}</span>
-          <small>{intentLabel}</small>
-        </div>
-        <time>{formatRelativeTime(entry.created_at)}</time>
-        {entry.expense?.id ? (
-          <button
-            type="button"
-            className="ghost-btn"
-            onClick={() => onViewExpense(entry.expense.id)}
-          >
-            View expense
-          </button>
-        ) : null}
-      </div>
-    </article>
-  )
 }
 
 const noScroll = (e) => e.target.blur()
