@@ -1,8 +1,6 @@
 import logging
-import smtplib
 from datetime import timezone
 
-from django.core.mail import send_mail
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -97,17 +95,13 @@ def _notify_expense_participants(expense, payer, friend_parts, group_label, expe
 			"Open Balance Studio to review the updated balances.",
 		]
 		try:
-			send_mail(
+			services._send_email(
 				subject=f"{payer.name} added an expense",
-				message='\n'.join(lines),
-				from_email=services.SETTLEMENT_FROM_EMAIL,
-				recipient_list=[target_email],
-				fail_silently=False,
+				text_body='\n'.join(lines),
+				to_email=target_email,
 			)
-		except (smtplib.SMTPException, TimeoutError, OSError) as exc:
-			failed_recipients.append((target_email, str(exc)))
 		except Exception as exc:
-			failed_recipients.append((target_email, f"unexpected error: {exc}"))
+			failed_recipients.append((target_email, str(exc)))
 
 	if failed_recipients:
 		recipients = ', '.join(email for email, _ in failed_recipients)
