@@ -5,6 +5,18 @@ import { useAuth } from '../context/AuthContext.jsx'
 import * as expensesApi from '../services/expensesApi'
 import { ACTIVITY_UPDATED_EVENT } from '../utils/realtimeStreams'
 
+const getInitials = (name = '') => {
+  const parts = name.trim().split(' ').filter(Boolean)
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
+  return name.slice(0, 2).toUpperCase()
+}
+const AVATAR_COLORS = ['#8a7bff', '#6bf2c1', '#ffb09e', '#ffce6e', '#a78bfa', '#34d399', '#f472b6']
+const getAvatarColor = (name = '') => {
+  let hash = 0
+  for (const c of name) hash = (hash * 31 + c.charCodeAt(0)) % AVATAR_COLORS.length
+  return AVATAR_COLORS[Math.abs(hash)]
+}
+
 const formatCurrency = (value) => {
   const parsed = Number.isFinite(Number(value)) ? Number(value) : 0
   return parsed.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
@@ -40,10 +52,18 @@ const ActivityCard = ({ entry, onViewExpense }) => {
     : (amount >= 0 ? 'activity-amount--positive' : 'activity-amount--negative')
   const note = entry.expense?.note || (isSettlement ? null : 'Untitled expense')
 
+  const typeBadgeColor = isSettlement ? '#6bf2c1' : amount >= 0 ? '#8a7bff' : '#ffb09e'
+  const typeBadgeIcon = isSettlement ? '✓' : amount >= 0 ? '↑' : '↓'
+
   return (
     <article className="activity-card">
       <div className="activity-card__stack">
-        {note ? <span className="activity-card__note">{note}</span> : null}
+        <div className="activity-card__badges">
+          <div className="activity-type-badge" style={{ background: typeBadgeColor }}>
+            {typeBadgeIcon}
+          </div>
+          {note ? <span className="activity-card__note">{note}</span> : null}
+        </div>
         <h2>{entry.summary}</h2>
         <p>{entry.detail}</p>
       </div>
@@ -195,6 +215,12 @@ const ExpenseModal = ({ expense, onClose, currentUserId, onDelete, onSave }) => 
                 <ul className="activity-modal__edit-participants">
                   {editParticipants.map((p, i) => (
                     <li key={p.userId} className="activity-modal__edit-participant">
+                      <div
+                        className="activity-modal__avatar"
+                        style={{ background: getAvatarColor(p.name) }}
+                      >
+                        {getInitials(p.name)}
+                      </div>
                       <span className="activity-modal__edit-participant-name">{p.name}</span>
                       <input
                         type="number"
@@ -246,11 +272,19 @@ const ExpenseModal = ({ expense, onClose, currentUserId, onDelete, onSave }) => 
                   return (
                     <li key={`${expense.id}-${participant.user?.id || participant.user?.name}`}>
                       <div className="activity-modal__person">
-                        <strong>
-                          {participant.user?.name || 'Friend'}
-                          {isViewer ? ' (You)' : ''}
-                        </strong>
-                        <span className="hint-text">{helperText}</span>
+                        <div
+                          className="activity-modal__avatar"
+                          style={{ background: getAvatarColor(participant.user?.name || 'Friend') }}
+                        >
+                          {getInitials(participant.user?.name || 'Friend')}
+                        </div>
+                        <div className="activity-modal__person-info">
+                          <strong>
+                            {participant.user?.name || 'Friend'}
+                            {isViewer ? ' (You)' : ''}
+                          </strong>
+                          <span className="hint-text">{helperText}</span>
+                        </div>
                       </div>
                       <span className={`activity-modal__amount ${toneClass}`}>{displayAmount}</span>
                     </li>
