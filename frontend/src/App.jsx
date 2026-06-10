@@ -6,6 +6,7 @@ import ProfilePage from './pages/ProfilePage.jsx'
 import AddExpensePage from './pages/AddExpensePage.jsx'
 import FriendsPage from './pages/FriendsPage.jsx'
 import ActivityPage from './pages/ActivityPage.jsx'
+import AIPage from './pages/AIPage.jsx'
 import ProtectedRoute from './components/ProtectedRoute.jsx'
 import ResetPasswordPage from './pages/ResetPasswordPage.jsx'
 import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
@@ -51,6 +52,14 @@ function App() {
       <Route
         path="/dashboard"
         element={<Navigate to="/" replace />}
+      />
+      <Route
+        path="/ai"
+        element={(
+          <ProtectedRoute>
+            <AIPage />
+          </ProtectedRoute>
+        )}
       />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />

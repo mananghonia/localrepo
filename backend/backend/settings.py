@@ -87,6 +87,7 @@ INSTALLED_APPS = [
     'expenses',
     'payments',
     'realtime.apps.RealtimeConfig',
+    'ai',
 ]
 
 REST_FRAMEWORK = {
@@ -119,6 +120,7 @@ RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 RESEND_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL', 'Balance Studio <onboarding@resend.dev>')
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
 BREVO_FROM_EMAIL = os.environ.get('BREVO_FROM_EMAIL', '')
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 
 if (
     EMAIL_BACKEND.endswith('smtp.EmailBackend')
