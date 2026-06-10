@@ -3074,7 +3074,7 @@ button.pill--muted:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.4rem 0.9rem 0.75rem;
+  padding: 2.2rem 0.9rem 0.75rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   flex-shrink: 0;
 }
