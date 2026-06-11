@@ -88,9 +88,7 @@ INSTALLED_APPS = [
 
     # Local apps
     'users',
-    'groups',
     'expenses',
-    'payments',
     'realtime.apps.RealtimeConfig',
     'ai',
 ]

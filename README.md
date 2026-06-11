@@ -1,107 +1,140 @@
-# Splitwise-style Expense Manager
+# Balance Studio
 
-This project aims to deliver a Splitwise-like experience with invitations, shared expense tracking, secure authentication, and payment integrations. The backend is built with Django REST Framework, MongoDB (via MongoEngine), JWT auth, and Google sign-in support. A React/Vite frontend lives in `frontend/` with ready-made login, signup, Google SSO, dashboard widgets, and the latest balances UI refresh.
+A full-stack expense splitting app — track shared bills, simplify debts, and settle up with friends. Built as a Splitwise-style clone with a modern UI and AI-powered features.
 
-## Current Capabilities
+![CI](https://github.com/mananghonia/localrepo/actions/workflows/ci.yml/badge.svg)
 
-- **Authentication & onboarding** – email OTP verification, username/email login, JWT rotation, and Google SSO all wired through DRF + MongoEngine auth classes.
-- **Groups, expenses, and payments** – dedicated Django apps (`groups/`, `expenses/`, `payments/`) feed the React dashboards with per-group ledgers and participation data.
-- **Friend ledger + settlements** – the Friends page now exposes a detailed breakdown modal that lets users settle an individual group or trigger the new "Settle everything" action to clear all open balances in one tap. Behind the scenes, the ledger service keeps both sides of every friendship in sync (no more stale balances reappearing after a settlement).
-- **Email notifications** – signup OTPs, settlement receipts, and new-expense alerts are sent via `splitwise676@gmail.com`, so anyone added to a bill immediately receives the amount they owe.
-- **Responsive UI polish** – gradient modal shell, compact close control, and accessibility-minded focus states to keep the experience sharp on both desktop and mobile.
+---
 
-## Getting Started
+## Features
+
+- **Auth** — Email + OTP signup, login, Google SSO, JWT refresh, forgot/reset password
+- **Friends** — Send invites, accept/reject, view per-friend balance breakdown
+- **Expenses** — Add expenses, split evenly or custom amounts, delete
+- **Debt simplification** — Greedy algorithm minimises the number of payments needed to settle a group
+- **Settle up** — Record settlements between friends, balances update instantly
+- **Activity feed** — Full history of expenses and settlements with relative timestamps
+- **Notifications** — In-app notification tray + email alerts for new expenses and settlements
+- **Receipt scanner** — Photo a receipt and Claude Vision auto-fills the expense name and total
+- **AI assistant** — Chat with an AI that knows your balances and recent expenses
+- **Analytics** — Spending breakdown charts
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, Vite 7, React Router |
+| Backend | Django 5.2, Django REST Framework |
+| Database | MongoDB Atlas via MongoEngine |
+| Auth | JWT (SimpleJWT), Google OAuth 2.0 |
+| AI | Anthropic Claude (Haiku) — receipt scan + chat |
+| Email | SMTP via Gmail / Resend |
+| WebSockets | Django Channels + Redis |
+| Deployment | Railway (backend) · Vercel (frontend) |
+| CI | GitHub Actions |
+
+---
+
+## Local Setup
+
+### Prerequisites
+- Python 3.11+
+- Node 20+
+- MongoDB (local or Atlas URI)
+
+### Backend
 
 ```bash
 cd backend
 python -m venv venv
+# Windows:
 venv\Scripts\activate
+# macOS/Linux:
+source venv/bin/activate
+
 pip install -r requirements.txt
-copy .env.example .env  # create your secrets file
-python manage.py migrate  # Django's built-in tables (sessions/admin)
+cp .env.example .env   # fill in your values
 python manage.py runserver
 ```
 
-### Environment Variables
-
-Set these (e.g., in `.env` or your shell):
-
-- `SECRET_KEY` – Django secret
-- `MONGODB_URI` – defaults to `mongodb://localhost:27017/splitwise`
-- `MONGODB_DB_NAME` – defaults to `splitwise`
-- `GOOGLE_CLIENT_ID` – Web client ID from Google Cloud console
-- `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` – SMTP settings used to deliver signup OTP emails (Gmail app passwords work well for local testing)
-- `DEFAULT_FROM_EMAIL` – Friendly from-name shown in verification emails
-- `SIGNUP_OTP_EXPIRATION_MINUTES` – Lifetime for each OTP (default `10`)
-
-### MongoDB hookup
-
-1. **Local MongoDB**
-	- Install MongoDB Community Server (or run it via Docker).
-	- Start the Windows service (`MongoDB`) or run `mongod --dbpath <path>`.
-	- Keep the default `MONGODB_URI=mongodb://localhost:27017/splitwise`.
-
-2. **MongoDB Atlas / remote cluster**
-	- Create a database user + network rule.
-	- Set `MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/splitwise?retryWrites=true&w=majority`.
-	- Optionally change `MONGODB_DB_NAME` to match the database you provisioned.
-
-3. **Verify connectivity**
-	```bash
-	cd backend
-	venv\Scripts\activate
-	python manage.py shell -c "from users.models import User; print('users collection ->', User.objects.count())"
-	```
-	If the number prints without errors, Django successfully connected through MongoEngine.
-
-## Frontend (React + Vite)
+### Frontend
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env.local  # set VITE_* vars
+cp .env.example .env.local   # fill in your values
 npm run dev
 ```
 
-- `VITE_API_BASE_URL` – defaults to `http://localhost:8000`
-- `VITE_GOOGLE_CLIENT_ID` – same web client ID used by the backend
+App runs at `http://localhost:5173`, API at `http://localhost:8000`.
 
-The frontend consumes `/api/users/*` endpoints, manages JWTs via `AuthContext`, and protects the dashboard route via React Router.
+---
 
-### Friend balances spotlight
+## Environment Variables
 
-- Open the **Friends** page and select a friend to launch the redesigned breakdown modal.
-- Each group entry still supports one-off settlement via `POST /api/users/friends/<id>/settlements/`.
-- The new primary action calls `POST /api/users/friends/<id>/settlements/all/`, marks every pending group as settled, and surfaces delivery status inside the modal.
-- The hero totals, confirmation copy, and success/error states refresh automatically thanks to the `friendsApi` helpers.
+### Backend (`.env`)
 
-### Email notifications
+| Variable | Description |
+|---|---|
+| `SECRET_KEY` | Django secret key |
+| `DEBUG` | `True` for local dev |
+| `MONGODB_URI` | MongoDB connection string |
+| `MONGODB_DB_NAME` | Database name (default: `splitwise`) |
+| `GOOGLE_CLIENT_ID` | Google OAuth web client ID |
+| `ANTHROPIC_API_KEY` | Anthropic API key for receipt scanner + AI chat |
+| `EMAIL_HOST_USER` | Gmail address for sending emails |
+| `EMAIL_HOST_PASSWORD` | Gmail app password |
+| `FRONTEND_BASE_URL` | Frontend URL for reset-password links |
+| `REDIS_URL` | Redis URL (required for WebSockets in production) |
 
-- Configure SMTP credentials (see **Environment Variables**) for `splitwise676@gmail.com` or your own sender.
-- Every participant added to an expense receives an email showing the amount they owe and a link back to Balance Studio.
-- Settlement flows still email both parties and now reuse the same sender for consistency.
-- Logs in `backend/expenses/views.py` capture SMTP failures so you can monitor delivery during development.
+### Frontend (`.env.local`)
 
-## Auth API
+| Variable | Description |
+|---|---|
+| `VITE_API_BASE_URL` | Backend URL (e.g. `https://your-app.railway.app`) |
+| `VITE_GOOGLE_CLIENT_ID` | Same Google client ID as backend |
 
-| Endpoint | Method | Description |
-| --- | --- | --- |
-| `/api/users/request-otp/` | `POST` | Send a one-time code to an email before signup |
-| `/api/users/signup/` | `POST` | Email/username/password signup + OTP verification (returns JWT pair) |
-| `/api/users/login/` | `POST` | Login with email *or username* + password |
-| `/api/users/google/` | `POST` | Google ID-token login for existing accounts (no auto-signup) |
+---
 
-All endpoints return `{ refresh, access, user }`. Default DRF permissions require JWT unless `AllowAny` is set.
+## Running Tests
 
-### Email OTP verification flow
+```bash
+# Backend — 41 tests
+cd backend
+python -m pytest
 
-1. **Request a code** – call `/api/users/request-otp/` with `{ email, name }`. The server sends a six-digit code using your configured SMTP provider.
-2. **Complete signup** – POST `/api/users/signup/` with `name`, `username`, `email`, `password`, and the `otp_code` you received. Each code is single-use and expires after `SIGNUP_OTP_EXPIRATION_MINUTES`.
-3. **Log in later** – `/api/users/login/` now accepts the same password with either the email address or username, or you can use Google sign-in *after* the email has been registered.
+# Frontend — 56 tests
+cd frontend
+npm run test:run
+```
 
-## Roadmap
+Tests cover: debt simplification algorithm, API validation, service utilities, utility functions, and React components. CI runs both suites on every push via GitHub Actions.
 
-- Export/shareable statements for each friend ledger (PDF + CSV).
-- Scheduled reminders + richer notification center on top of the existing email hooks.
-- Hardening: production-ready deployment docs, HTTPS by default, Redis-based rate limiting, and background jobs for large settlement emails.
+---
 
+## Project Structure
+
+```
+├── backend/
+│   ├── ai/              # AI chat endpoint (Claude)
+│   ├── expenses/        # Expense CRUD, debt simplification, receipt scan
+│   ├── realtime/        # WebSocket consumers (Django Channels)
+│   ├── users/           # Auth, friends, notifications, settlements
+│   └── backend/         # Django settings, URLs, ASGI config
+└── frontend/
+    ├── src/
+    │   ├── components/  # Shared UI components
+    │   ├── pages/       # Route-level page components
+    │   ├── services/    # API client modules
+    │   └── utils/       # Pure utility functions (tested)
+    └── src/__tests__/   # Vitest + React Testing Library tests
+```
+
+---
+
+## Deployment
+
+- **Backend** deployed on [Railway](https://railway.app) — connects to MongoDB Atlas, Redis (Upstash), and serves the Django ASGI app via Uvicorn.
+- **Frontend** deployed on [Vercel](https://vercel.com) — static build served with SPA rewrites.
